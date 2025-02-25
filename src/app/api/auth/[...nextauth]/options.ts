@@ -71,4 +71,6 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
+  // Add a secret key for production
+  secret: process.env.NEXTAUTH_SECRET || 'your-development-secret-do-not-use-in-production',
 };
