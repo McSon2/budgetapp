@@ -21,7 +21,7 @@ import { Input } from '@/components/ui/input';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { signIn } from 'next-auth/react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -37,7 +37,6 @@ type LoginFormValues = z.infer<typeof loginFormSchema>;
 
 // Component that uses useSearchParams
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get('callbackUrl') || '/dashboard';
   const [isLoading, setIsLoading] = useState(false);
@@ -70,9 +69,11 @@ function LoginForm() {
 
       toast.success('Logged in successfully');
 
-      // Redirect to callback URL or dashboard
-      router.push(callbackUrl);
-      router.refresh();
+      // Add a small delay before redirecting to ensure the session is properly set
+      setTimeout(() => {
+        // Redirect to callback URL or dashboard
+        window.location.href = callbackUrl;
+      }, 500);
     } catch (error) {
       toast.error('An error occurred during login');
       console.error('Login error:', error);

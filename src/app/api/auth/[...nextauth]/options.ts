@@ -59,11 +59,19 @@ export const authOptions: NextAuthOptions = {
   ],
   session: {
     strategy: 'jwt' as const,
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   pages: {
     signIn: '/login',
+    error: '/login',
   },
   callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+      }
+      return token;
+    },
     async session({ session, token }: { session: Session; token: JWT }) {
       if (token && session.user) {
         session.user.id = token.sub;
@@ -73,4 +81,5 @@ export const authOptions: NextAuthOptions = {
   },
   // Add a secret key for production
   secret: process.env.NEXTAUTH_SECRET || 'your-development-secret-do-not-use-in-production',
+  debug: process.env.NODE_ENV === 'development',
 };

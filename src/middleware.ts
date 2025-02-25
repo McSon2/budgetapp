@@ -17,7 +17,14 @@ export async function middleware(request: NextRequest) {
   // Define public routes that don't require authentication
   const publicRoutes = ['/login', '/register'];
   const isPublicRoute = publicRoutes.some(
-    route => pathname === route || pathname.startsWith('/api/') || pathname.includes('/_next/')
+    route =>
+      pathname === route ||
+      pathname.startsWith('/api/') ||
+      pathname.includes('/_next/') ||
+      pathname.includes('/favicon.ico') ||
+      pathname.includes('.png') ||
+      pathname.includes('.jpg') ||
+      pathname.includes('.svg')
   );
 
   // Si l'utilisateur est sur la page d'accueil, rediriger vers le dashboard ou login
