@@ -3,8 +3,9 @@
 import { useDashboard } from '@/components/providers/MonthProvider';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { UpdateIcon } from '@radix-ui/react-icons';
-import { format, parseISO } from 'date-fns';
+import { Skeleton } from '@/components/ui/skeleton';
+import { CalendarIcon, UpdateIcon } from '@radix-ui/react-icons';
+import { addMonths, format, isBefore, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -45,38 +46,78 @@ export function RecurringExpensesCard({
     }
   }, [dashboardData.recurringExpenses, propExpenses]);
 
+  // Fonction pour calculer la prochaine date d'échéance en fonction de la fréquence
+  const getNextOccurrence = (date: Date, frequency: string): Date => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let nextDate = new Date(date);
+
+    // Si la date est dans le passé, calculer la prochaine occurrence
+    if (isBefore(nextDate, today)) {
+      switch (frequency) {
+        case 'daily':
+          // Pour les dépenses quotidiennes, la prochaine occurrence est demain
+          nextDate = new Date(today);
+          nextDate.setDate(today.getDate() + 1);
+          break;
+
+        case 'weekly':
+          // Pour les dépenses hebdomadaires, ajouter des semaines jusqu'à ce que la date soit future
+          while (isBefore(nextDate, today)) {
+            nextDate.setDate(nextDate.getDate() + 7);
+          }
+          break;
+
+        case 'monthly':
+          // Pour les dépenses mensuelles, conserver le même jour du mois mais avancer les mois
+          let monthsToAdd = 1;
+
+          // Calculer combien de mois il faut ajouter pour que la date soit dans le futur
+          while (isBefore(addMonths(date, monthsToAdd), today)) {
+            monthsToAdd++;
+          }
+
+          nextDate = addMonths(date, monthsToAdd);
+          break;
+
+        case 'yearly':
+          // Pour les dépenses annuelles, ajouter des années jusqu'à ce que la date soit future
+          while (isBefore(nextDate, today)) {
+            nextDate.setFullYear(nextDate.getFullYear() + 1);
+          }
+          break;
+      }
+    }
+
+    return nextDate;
+  };
+
   // Fonction pour formater la date en français
-  const formatDate = (date: Date | string, expenseFrequency?: string) => {
+  const formatDate = (date: Date | string, expenseFrequency?: string): string => {
     try {
       // Si c'est une chaîne ISO, utiliser parseISO pour éviter les problèmes de fuseau horaire
       const dateObj = typeof date === 'string' ? parseISO(date) : date;
       const today = new Date();
 
-      // Pour les dépenses annuelles, vérifier si la date est déjà passée cette année
-      if (expenseFrequency === 'yearly') {
-        // Créer une date avec l'année actuelle mais le même mois et jour que la date de dépense
-        const thisYearDate = new Date(today.getFullYear(), dateObj.getMonth(), dateObj.getDate());
+      // Si une fréquence est spécifiée, calculer la prochaine occurrence
+      if (expenseFrequency) {
+        const nextOccurrence = getNextOccurrence(dateObj, expenseFrequency);
 
-        // Si cette date est déjà passée, la prochaine occurrence sera l'année prochaine
-        if (thisYearDate < today) {
-          // Afficher avec l'année suivante
-          return format(
-            new Date(today.getFullYear() + 1, dateObj.getMonth(), dateObj.getDate()),
-            'd MMM yyyy',
-            { locale: fr }
-          );
+        // Afficher l'année si elle est différente de l'année en cours
+        if (nextOccurrence.getFullYear() !== today.getFullYear()) {
+          return format(nextOccurrence, 'd MMM yyyy', { locale: fr });
         }
 
-        // Sinon, afficher avec l'année actuelle
-        return format(thisYearDate, 'd MMM yyyy', { locale: fr });
+        // Sinon, afficher juste le jour et le mois
+        return format(nextOccurrence, 'd MMM', { locale: fr });
       }
 
-      // Pour les autres dépenses, afficher l'année si elle est différente de l'année en cours
+      // Si pas de fréquence spécifiée, comportement par défaut
       if (dateObj.getFullYear() !== today.getFullYear()) {
         return format(dateObj, 'd MMM yyyy', { locale: fr });
       }
 
-      // Sinon, afficher juste le jour et le mois
       return format(dateObj, 'd MMM', { locale: fr });
     } catch (error) {
       console.error('Erreur lors du formatage de la date:', error, date);
@@ -102,16 +143,15 @@ export function RecurringExpensesCard({
       const fetchRecurringExpenses = async () => {
         setIsLoading(true);
         try {
-          const response = await fetch('/api/expenses/recurring');
-          if (response.ok) {
-            const data = await response.json();
-            setExpenses(data);
-          } else {
-            toast.error('Erreur lors de la récupération des dépenses récurrentes');
+          const response = await fetch('/api/recurring-expenses');
+          if (!response.ok) {
+            throw new Error('Failed to fetch recurring expenses');
           }
+          const data = await response.json();
+          setExpenses(data);
         } catch (error) {
-          console.error('Erreur lors de la récupération des dépenses récurrentes:', error);
-          toast.error('Erreur lors de la récupération des dépenses récurrentes');
+          console.error('Failed to fetch recurring expenses:', error);
+          toast.error('Impossible de récupérer les dépenses récurrentes');
         } finally {
           setIsLoading(false);
         }
@@ -123,21 +163,33 @@ export function RecurringExpensesCard({
 
   // Trier les dépenses par date (les plus proches en premier)
   const sortedExpenses = [...expenses].sort((a, b) => {
-    const dateA = new Date(a.nextDate);
-    const dateB = new Date(b.nextDate);
-    return dateA.getTime() - dateB.getTime();
+    // Convertir les dates en objets Date
+    const dateA = typeof a.nextDate === 'string' ? parseISO(a.nextDate) : a.nextDate;
+    const dateB = typeof b.nextDate === 'string' ? parseISO(b.nextDate) : b.nextDate;
+
+    // Calculer les prochaines occurrences
+    const nextA = getNextOccurrence(dateA, a.frequency);
+    const nextB = getNextOccurrence(dateB, b.frequency);
+
+    // Trier par date
+    return nextA.getTime() - nextB.getTime();
   });
 
   return (
     <Card className="h-full">
       <CardHeader>
-        <CardTitle>Dépenses récurrentes</CardTitle>
-        <CardDescription>Vos paiements réguliers à venir</CardDescription>
+        <div className="flex justify-between items-start">
+          <div>
+            <CardTitle>Dépenses récurrentes</CardTitle>
+            <CardDescription>Vos paiements réguliers à venir</CardDescription>
+          </div>
+          <UpdateIcon className="h-4 w-4 text-muted-foreground" />
+        </div>
         {!isLoading && expenses.length > 0 && (
-          <div className="mt-2 p-2 bg-muted rounded-md">
-            <p className="text-sm font-medium">
-              Total mensuel:{' '}
-              <span className="text-destructive">
+          <div className="mt-2 p-3 bg-muted rounded-md">
+            <p className="text-sm font-medium flex justify-between items-center">
+              <span>Total mensuel estimé:</span>
+              <span className="text-destructive font-bold">
                 {totalRecurringAmount.toLocaleString('fr-FR')} {currency}
               </span>
             </p>
@@ -146,14 +198,24 @@ export function RecurringExpensesCard({
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="flex justify-center items-center h-40">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+          <div className="space-y-3">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
           </div>
         ) : expenses.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Aucune dépense récurrente.</p>
+          <div className="flex flex-col items-center justify-center py-6 text-center">
+            <div className="rounded-full bg-muted p-3 mb-3">
+              <CalendarIcon className="h-6 w-6 text-muted-foreground" />
+            </div>
+            <p className="text-sm text-muted-foreground">Aucune dépense récurrente.</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Ajoutez des dépenses récurrentes pour suivre vos paiements réguliers.
+            </p>
+          </div>
         ) : (
           <div
-            className="max-h-[350px] overflow-y-auto pr-1 scrollbar-hide"
+            className="space-y-3 max-h-[350px] overflow-y-auto pr-1 scrollbar-hide"
             style={{
               scrollbarWidth: 'none',
               msOverflowStyle: 'none',
@@ -162,9 +224,9 @@ export function RecurringExpensesCard({
             {sortedExpenses.map(expense => (
               <div
                 key={expense.id}
-                className="flex items-center justify-between border-b pb-2 mb-2"
+                className="flex flex-col p-3 border rounded-lg hover:bg-muted/50 transition-colors"
               >
-                <div className="space-y-1">
+                <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{expense.description}</span>
                     <Badge variant="outline" className="text-xs">
@@ -172,13 +234,14 @@ export function RecurringExpensesCard({
                       {translateFrequency(expense.frequency)}
                     </Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Prochain: {formatDate(expense.nextDate, expense.frequency)}
-                  </p>
+                  <span className="font-medium text-destructive">
+                    -{expense.amount.toLocaleString('fr-FR')} {currency}
+                  </span>
                 </div>
-                <span className="font-medium text-destructive">
-                  -{expense.amount.toLocaleString('fr-FR')} {currency}
-                </span>
+                <div className="flex items-center text-xs text-muted-foreground">
+                  <CalendarIcon className="h-3 w-3 mr-1" />
+                  <span>Prochaine échéance: {formatDate(expense.nextDate, expense.frequency)}</span>
+                </div>
               </div>
             ))}
           </div>

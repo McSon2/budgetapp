@@ -2,7 +2,6 @@
 
 import { useDashboard } from '@/components/providers/MonthProvider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -27,7 +26,6 @@ export function SummaryCard({
   const formattedMonth = format(dashboardData.selectedMonth, 'MMMM yyyy', { locale: fr });
 
   const total = income - expenses;
-  const percentage = income > 0 ? Math.min(100, Math.round((expenses / income) * 100)) : 100;
 
   return (
     <Card className="h-full">
@@ -57,18 +55,6 @@ export function SummaryCard({
               >
                 {total.toLocaleString('fr-FR')} {currency}
               </span>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex justify-between text-xs">
-              <span>Dépenses</span>
-              <span>{percentage}%</span>
-            </div>
-            <Progress value={percentage} className="h-2" />
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>0%</span>
-              <span>100%</span>
             </div>
           </div>
         </div>

@@ -552,12 +552,21 @@ export function ExpensesList() {
   const [isLoading, setIsLoading] = useState(true);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
 
+  // Filtres et recherche
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'expense' | 'income'>('all');
+
   // Récupérer le mois sélectionné depuis le store
   const { selectedMonth } = useDateStore();
 
   // États pour le tri
   const [sortField, setSortField] = useState<'name' | 'category' | 'date' | 'amount'>('date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const fetchExpenses = useCallback(async () => {
     setIsLoading(true);
@@ -666,11 +675,32 @@ export function ExpensesList() {
     }
   };
 
-  // Fonction pour obtenir les dépenses triées
-  const getSortedExpenses = () => {
+  // Fonction pour obtenir les dépenses filtrées et triées
+  const getFilteredAndSortedExpenses = () => {
     if (!expenses.length) return [];
 
-    return [...expenses].sort((a, b) => {
+    // Filtrer d'abord
+    const filtered = expenses.filter(expense => {
+      // Filtre de recherche
+      const matchesSearch =
+        searchTerm === '' ||
+        expense.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (expense.category && expense.category.toLowerCase().includes(searchTerm.toLowerCase()));
+
+      // Filtre de catégorie
+      const matchesCategory = categoryFilter === 'all' || expense.category === categoryFilter;
+
+      // Filtre de type (dépense/revenu)
+      const matchesType =
+        typeFilter === 'all' ||
+        (typeFilter === 'expense' && expense.amount < 0) ||
+        (typeFilter === 'income' && expense.amount > 0);
+
+      return matchesSearch && matchesCategory && matchesType;
+    });
+
+    // Puis trier
+    return filtered.sort((a, b) => {
       let comparison = 0;
 
       switch (sortField) {
@@ -710,10 +740,26 @@ export function ExpensesList() {
   // Recharger les dépenses lorsque le mois sélectionné change
   useEffect(() => {
     fetchExpenses();
+    // Réinitialiser la pagination lors du changement de mois
+    setCurrentPage(1);
   }, [selectedMonth, fetchExpenses]);
 
-  // Obtenir les dépenses triées
-  const sortedExpenses = getSortedExpenses();
+  // Réinitialiser la pagination lors du changement de filtres
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, categoryFilter, typeFilter]);
+
+  // Obtenir les dépenses filtrées et triées
+  const filteredAndSortedExpenses = getFilteredAndSortedExpenses();
+
+  // Calculer les dépenses paginées
+  const paginatedExpenses = filteredAndSortedExpenses.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  // Calculer le nombre total de pages
+  const totalPages = Math.ceil(filteredAndSortedExpenses.length / itemsPerPage);
 
   // Formater le mois pour l'affichage
   const formattedMonth = format(
@@ -728,72 +774,170 @@ export function ExpensesList() {
         <CardTitle>Vos Transactions</CardTitle>
         <CardDescription>Consultez et gérez vos transactions pour {formattedMonth}</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
+        {/* Filtres et recherche */}
+        <div className="flex flex-col md:flex-row gap-4 mb-4">
+          <div className="flex-1">
+            <Input
+              placeholder="Rechercher une transaction..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Toutes les catégories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Toutes les catégories</SelectItem>
+                {categories.map(category => (
+                  <SelectItem key={category.id} value={category.name}>
+                    {category.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={typeFilter}
+              onValueChange={(value: 'all' | 'expense' | 'income') => setTypeFilter(value)}
+            >
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Tous les types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les types</SelectItem>
+                <SelectItem value="expense">Dépenses</SelectItem>
+                <SelectItem value="income">Revenus</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
         {isLoading ? (
           <div className="flex justify-center items-center h-40">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
           </div>
         ) : (
-          <div className="rounded-md border">
-            <div className="grid grid-cols-5 bg-muted p-4 font-medium">
-              <div
-                className="cursor-pointer hover:text-primary flex items-center"
-                onClick={() => handleSort('name')}
-              >
-                Nom <SortIcon field="name" />
-              </div>
-              <div
-                className="cursor-pointer hover:text-primary flex items-center"
-                onClick={() => handleSort('category')}
-              >
-                Catégorie <SortIcon field="category" />
-              </div>
-              <div
-                className="cursor-pointer hover:text-primary flex items-center"
-                onClick={() => handleSort('date')}
-              >
-                Date <SortIcon field="date" />
-              </div>
-              <div
-                className="cursor-pointer hover:text-primary flex items-center justify-end"
-                onClick={() => handleSort('amount')}
-              >
-                Montant <SortIcon field="amount" />
-              </div>
-              <div className="text-right">Actions</div>
-            </div>
-            {sortedExpenses.map(expense => (
-              <div key={expense.id} className="grid grid-cols-5 p-4 border-t">
-                <div>{expense.name}</div>
-                <div>{expense.category}</div>
-                <div>{new Date(expense.date).toLocaleDateString()}</div>
+          <>
+            <div className="rounded-md border overflow-hidden">
+              <div className="grid grid-cols-5 bg-muted p-4 font-medium">
                 <div
-                  className={`text-right ${expense.amount < 0 ? 'text-red-500' : 'text-green-500'}`}
+                  className="cursor-pointer hover:text-primary flex items-center"
+                  onClick={() => handleSort('name')}
                 >
-                  {expense.amount.toFixed(2)} €
+                  Nom <SortIcon field="name" />
                 </div>
-                <div className="flex justify-end gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => handleEdit(expense)}>
-                    Modifier
+                <div
+                  className="cursor-pointer hover:text-primary flex items-center"
+                  onClick={() => handleSort('category')}
+                >
+                  Catégorie <SortIcon field="category" />
+                </div>
+                <div
+                  className="cursor-pointer hover:text-primary flex items-center"
+                  onClick={() => handleSort('date')}
+                >
+                  Date <SortIcon field="date" />
+                </div>
+                <div
+                  className="cursor-pointer hover:text-primary flex items-center justify-end"
+                  onClick={() => handleSort('amount')}
+                >
+                  Montant <SortIcon field="amount" />
+                </div>
+                <div className="text-right">Actions</div>
+              </div>
+
+              {paginatedExpenses.length > 0 ? (
+                <>
+                  {paginatedExpenses.map(expense => (
+                    <div
+                      key={expense.id}
+                      className="grid grid-cols-5 p-4 border-t hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="truncate">{expense.name}</div>
+                      <div>
+                        {expense.category ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                            {expense.category}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">Non catégorisé</span>
+                        )}
+                      </div>
+                      <div>{new Date(expense.date).toLocaleDateString()}</div>
+                      <div
+                        className={`text-right font-medium ${expense.amount < 0 ? 'text-red-500' : 'text-green-500'}`}
+                      >
+                        {expense.amount.toFixed(2)} €
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="ghost" size="sm" onClick={() => handleEdit(expense)}>
+                          Modifier
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-500 hover:text-red-700 hover:bg-red-100"
+                          onClick={() => handleDelete(expense.id)}
+                        >
+                          Supprimer
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <div className="p-8 text-center text-muted-foreground">
+                  {filteredAndSortedExpenses.length === 0 ? (
+                    <>
+                      Aucune transaction trouvée pour {formattedMonth}.
+                      <br />
+                      <span className="text-sm">Ajoutez des transactions pour commencer.</span>
+                    </>
+                  ) : (
+                    <>
+                      Aucune transaction ne correspond à vos critères de recherche.
+                      <br />
+                      <span className="text-sm">Essayez de modifier vos filtres.</span>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex justify-between items-center mt-4">
+                <div className="text-sm text-muted-foreground">
+                  Affichage de {(currentPage - 1) * itemsPerPage + 1} à{' '}
+                  {Math.min(currentPage * itemsPerPage, filteredAndSortedExpenses.length)} sur{' '}
+                  {filteredAndSortedExpenses.length} transactions
+                </div>
+                <div className="flex gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Précédent
                   </Button>
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
-                    className="text-red-500"
-                    onClick={() => handleDelete(expense.id)}
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
                   >
-                    Supprimer
+                    Suivant
                   </Button>
                 </div>
               </div>
-            ))}
-            {expenses.length === 0 && (
-              <div className="p-4 text-center text-muted-foreground">
-                Aucune transaction trouvée pour {formattedMonth}. Ajoutez des transactions pour
-                commencer.
-              </div>
             )}
-          </div>
+          </>
         )}
       </CardContent>
 
