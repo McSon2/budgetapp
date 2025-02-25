@@ -5,8 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "dev:turbo": "next dev --turbopack",
-    "build": "prisma generate && prisma migrate deploy && next build --no-lint",
-    "start": "next start",
+    "build": "next build --no-lint",
+    "start": "prisma migrate deploy && next start",
+    "postinstall": "prisma generate",
     "lint": "next lint",
     "prepare": "husky"
   },
