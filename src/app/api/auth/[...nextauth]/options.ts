@@ -29,7 +29,10 @@ export const authOptions: NextAuthOptions = {
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
+        console.log('Auth attempt with email:', credentials?.email);
+
         if (!credentials?.email || !credentials?.password) {
+          console.log('Missing credentials');
           return null;
         }
 
@@ -39,21 +42,32 @@ export const authOptions: NextAuthOptions = {
           },
         });
 
+        console.log('User found:', user ? 'Yes' : 'No');
+
         if (!user || !user.password) {
+          console.log('User not found or no password');
           return null;
         }
 
-        const isPasswordValid = await compare(credentials.password, user.password);
+        try {
+          const isPasswordValid = await compare(credentials.password, user.password);
+          console.log('Password validation result:', isPasswordValid);
 
-        if (!isPasswordValid) {
+          if (!isPasswordValid) {
+            console.log('Invalid password');
+            return null;
+          }
+
+          console.log('Authentication successful for user:', user.email);
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+          };
+        } catch (error) {
+          console.error('Error comparing passwords:', error);
           return null;
         }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-        };
       },
     }),
   ],

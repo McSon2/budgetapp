@@ -19,9 +19,10 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { zodResolver } from '@hookform/resolvers/zod';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Suspense, useState } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -42,7 +43,7 @@ const registerFormSchema = z
 type RegisterFormValues = z.infer<typeof registerFormSchema>;
 
 // Component that uses useRouter
-function RegisterForm() {
+function RegisterFormComponent() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -170,13 +171,19 @@ function RegisterForm() {
   );
 }
 
-// Main page component with Suspense boundary
+// Use dynamic import to prevent server-side rendering
+const RegisterForm = dynamic(() => Promise.resolve(RegisterFormComponent), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full max-w-md p-8 flex items-center justify-center">Loading...</div>
+  ),
+});
+
+// Main page component
 export default function RegisterPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <Suspense fallback={<div>Loading...</div>}>
-        <RegisterForm />
-      </Suspense>
+      <RegisterForm />
     </div>
   );
 }

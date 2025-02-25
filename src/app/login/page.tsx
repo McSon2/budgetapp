@@ -20,9 +20,10 @@ import {
 import { Input } from '@/components/ui/input';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { signIn } from 'next-auth/react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Suspense, useState } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -36,7 +37,7 @@ const loginFormSchema = z.object({
 type LoginFormValues = z.infer<typeof loginFormSchema>;
 
 // Component that uses useSearchParams
-function LoginForm() {
+function LoginFormComponent() {
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get('callbackUrl') || '/dashboard';
   const [isLoading, setIsLoading] = useState(false);
@@ -134,13 +135,19 @@ function LoginForm() {
   );
 }
 
-// Main page component with Suspense boundary
+// Use dynamic import to prevent server-side rendering
+const LoginForm = dynamic(() => Promise.resolve(LoginFormComponent), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full max-w-md p-8 flex items-center justify-center">Loading...</div>
+  ),
+});
+
+// Main page component
 export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <Suspense fallback={<div>Loading...</div>}>
-        <LoginForm />
-      </Suspense>
+      <LoginForm />
     </div>
   );
 }
