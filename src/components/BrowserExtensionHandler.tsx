@@ -11,11 +11,31 @@ export function BrowserExtensionHandler() {
   useEffect(() => {
     // Handle the bootstrap-legacy-autofill-overlay error
     if (typeof window !== 'undefined') {
-      // Create a dummy domQueryService to prevent errors
+      // Create a more comprehensive dummy domQueryService to prevent errors
       // @ts-expect-error - Intentionally adding to window object
-      window.domQueryService = window.domQueryService || {
-        querySelector: () => null,
-        querySelectorAll: () => [],
+      window.domQueryService = {
+        querySelector: (selector: string) => {
+          try {
+            return document.querySelector(selector);
+          } catch {
+            return null;
+          }
+        },
+        querySelectorAll: (selector: string) => {
+          try {
+            return document.querySelectorAll(selector);
+          } catch {
+            return [];
+          }
+        },
+        // Add additional methods that might be called by the extension
+        contains: () => false,
+        matches: () => false,
+        closest: () => null,
+        getAttribute: () => null,
+        hasAttribute: () => false,
+        getElementsByTagName: () => [],
+        getElementsByClassName: () => [],
       };
 
       // Intercept console errors related to browser extensions
@@ -25,7 +45,9 @@ export function BrowserExtensionHandler() {
         const errorString = args.join(' ');
         if (
           errorString.includes('bootstrap-legacy-autofill-overlay') ||
-          errorString.includes('domQueryService')
+          errorString.includes('domQueryService') ||
+          errorString.includes('autofill') ||
+          errorString.includes('notificationBar')
         ) {
           // Suppress these specific errors
           return;
@@ -35,9 +57,29 @@ export function BrowserExtensionHandler() {
         originalConsoleError.apply(console, args);
       };
 
+      // Intercept unhandled errors
+      const originalOnError = window.onerror;
+      window.onerror = function (message, source, lineno, colno, error) {
+        if (
+          source?.includes('bootstrap-legacy-autofill-overlay') ||
+          source?.includes('notificationBar') ||
+          message?.toString().includes('domQueryService')
+        ) {
+          // Prevent the error from bubbling up
+          return true;
+        }
+
+        // Call the original handler for other errors
+        if (originalOnError) {
+          return originalOnError.apply(this, [message, source, lineno, colno, error]);
+        }
+        return false;
+      };
+
       return () => {
-        // Restore original console.error when component unmounts
+        // Restore original handlers when component unmounts
         console.error = originalConsoleError;
+        window.onerror = originalOnError;
       };
     }
   }, []);
