@@ -1,8 +1,9 @@
 import '@/app/globals.css';
 import { SessionProvider } from '@/components/auth/SessionProvider';
+import { BrowserExtensionHandler } from '@/components/BrowserExtensionHandler';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/sonner';
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 
 const geistSans = Geist({
@@ -18,6 +19,17 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'Budget App - Personal Finance Management',
   description: 'Track your expenses, manage your budget, and plan your financial future',
+  other: {
+    'format-detection': 'telephone=no',
+    robots: 'noarchive',
+    autocomplete: 'off',
+    'password-manager': 'disable',
+  },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
 };
 
 export default function RootLayout({
@@ -37,6 +49,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <SessionProvider>
+            <BrowserExtensionHandler />
             {children}
             <Toaster />
           </SessionProvider>
