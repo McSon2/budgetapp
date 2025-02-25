@@ -19,12 +19,17 @@ export interface DashboardData {
     amount: number;
     color: string;
   }[];
+  selectedMonth: Date;
 }
 
-export async function getDashboardData(userId: string): Promise<DashboardData> {
+export async function getDashboardData(
+  userId: string,
+  selectedDate?: Date
+): Promise<DashboardData> {
   const today = new Date();
-  const startOfCurrentMonth = startOfMonth(today);
-  const endOfCurrentMonth = endOfMonth(today);
+  const selectedMonth = selectedDate || today;
+  const startOfSelectedMonth = startOfMonth(selectedMonth);
+  const endOfSelectedMonth = endOfMonth(selectedMonth);
 
   // Récupérer toutes les dépenses de l'utilisateur
   const allExpenses = await prisma.expense.findMany({
@@ -40,17 +45,19 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     },
   });
 
-  // Calculer les entrées et sorties du mois en cours
-  const currentMonthExpenses = allExpenses.filter(expense => {
+  // Calculer les entrées et sorties du mois sélectionné
+  const selectedMonthExpenses = allExpenses.filter(expense => {
     const expenseDate = new Date(expense.date);
-    return !isBefore(expenseDate, startOfCurrentMonth) && !isAfter(expenseDate, endOfCurrentMonth);
+    return (
+      !isBefore(expenseDate, startOfSelectedMonth) && !isAfter(expenseDate, endOfSelectedMonth)
+    );
   });
 
-  const income = currentMonthExpenses
+  const income = selectedMonthExpenses
     .filter(expense => expense.amount > 0)
     .reduce((sum, expense) => sum + expense.amount, 0);
 
-  const expenses = currentMonthExpenses
+  const expenses = selectedMonthExpenses
     .filter(expense => expense.amount < 0)
     .reduce((sum, expense) => sum + Math.abs(expense.amount), 0);
 
@@ -65,13 +72,13 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     })
     .reduce((sum, expense) => sum + expense.amount, 0);
 
-  // Calculer le solde de fin de mois (toutes les dépenses jusqu'à la fin du mois)
+  // Calculer le solde de fin de mois (toutes les dépenses jusqu'à la fin du mois sélectionné)
   const endOfMonthBalance = allExpenses
     .filter(expense => {
       const expenseDate = new Date(expense.date);
       return (
-        isBefore(expenseDate, endOfCurrentMonth) ||
-        format(expenseDate, 'yyyy-MM-dd') === format(endOfCurrentMonth, 'yyyy-MM-dd')
+        isBefore(expenseDate, endOfSelectedMonth) ||
+        format(expenseDate, 'yyyy-MM-dd') === format(endOfSelectedMonth, 'yyyy-MM-dd')
       );
     })
     .reduce((sum, expense) => sum + expense.amount, 0);
@@ -85,16 +92,15 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
       amount: Math.abs(expense.amount),
       frequency: expense.recurrence?.frequency || 'monthly',
       nextDate: expense.recurrence?.startDate || new Date(),
-    }))
-    .slice(0, 5);
+    }));
 
-  // Calculer les dépenses par catégorie
+  // Calculer les dépenses par catégorie pour le mois sélectionné
   const categoryMap = new Map<
     string,
     { id: string; name: string; amount: number; color: string }
   >();
 
-  currentMonthExpenses
+  selectedMonthExpenses
     .filter(expense => expense.amount < 0 && expense.category)
     .forEach(expense => {
       if (!expense.category) return;
@@ -133,5 +139,6 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     expenses,
     recurringExpenses,
     categoryExpenses,
+    selectedMonth: startOfSelectedMonth,
   };
 }

@@ -54,7 +54,7 @@ export function AddExpensePopover() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: '',
-      amount: undefined,
+      amount: 0,
       type: 'expense',
       date: new Date(),
       category: undefined,
@@ -213,7 +213,17 @@ export function AddExpensePopover() {
                   <FormItem>
                     <FormLabel>Montant</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" placeholder="0.00" {...field} />
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        {...field}
+                        value={field.value === 0 ? '' : field.value}
+                        onChange={e => {
+                          const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                          field.onChange(value);
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

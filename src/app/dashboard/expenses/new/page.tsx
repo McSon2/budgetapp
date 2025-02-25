@@ -13,7 +13,9 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 // Définir l'interface pour les catégories
 interface Category {
@@ -22,7 +24,16 @@ interface Category {
 }
 
 export default function NewExpensePage() {
+  const router = useRouter();
   const [categories, setCategories] = useState<Category[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const amountInputRef = useRef<HTMLInputElement>(null);
+
+  // États pour les champs du formulaire
+  const [description, setDescription] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [categoryId, setCategoryId] = useState('');
+  const [isRecurring, setIsRecurring] = useState(false);
 
   useEffect(() => {
     async function fetchCategories() {
@@ -39,6 +50,62 @@ export default function NewExpensePage() {
 
     fetchCategories();
   }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Validation de base
+    if (!description.trim()) {
+      toast.error('Veuillez saisir une description');
+      return;
+    }
+
+    // Récupérer la valeur du montant depuis la référence
+    const amountValue = amountInputRef.current?.value;
+
+    if (!amountValue || isNaN(parseFloat(amountValue))) {
+      toast.error('Veuillez saisir un montant valide');
+      return;
+    }
+
+    if (!date) {
+      toast.error('Veuillez sélectionner une date');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // Convertir le montant en nombre négatif pour les dépenses
+      const numericAmount = parseFloat(amountValue) * -1;
+
+      const response = await fetch('/api/expenses', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          description,
+          amount: numericAmount,
+          date,
+          categoryId: categoryId || undefined,
+          isRecurring,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Erreur lors de la création de la dépense');
+      }
+
+      toast.success('Dépense ajoutée avec succès');
+      router.push('/dashboard');
+    } catch (error) {
+      console.error('Erreur lors de la création de la dépense:', error);
+      toast.error('Erreur lors de la création de la dépense');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="container mx-auto py-6">
@@ -57,30 +124,38 @@ export default function NewExpensePage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="space-y-6">
+          <form className="space-y-6" onSubmit={handleSubmit}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
-                <Input id="description" placeholder="Description de la dépense" />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="amount">Montant</Label>
-                <Input id="amount" type="number" step="0.01" placeholder="0.00" />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="date">Date</Label>
                 <Input
-                  id="date"
-                  type="date"
-                  defaultValue={new Date().toISOString().split('T')[0]}
+                  id="description"
+                  placeholder="Description de la dépense"
+                  value={description}
+                  onChange={e => setDescription(e.target.value)}
                 />
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="amount">Montant</Label>
+                <Input
+                  id="amount"
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  ref={amountInputRef}
+                  defaultValue=""
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="date">Date</Label>
+                <Input id="date" type="date" value={date} onChange={e => setDate(e.target.value)} />
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="category">Catégorie</Label>
-                <Select>
+                <Select value={categoryId} onValueChange={setCategoryId}>
                   <SelectTrigger id="category">
                     <SelectValue placeholder="Sélectionner une catégorie" />
                   </SelectTrigger>
@@ -96,15 +171,19 @@ export default function NewExpensePage() {
             </div>
 
             <div className="flex items-center space-x-2">
-              <Switch id="recurring" />
+              <Switch id="recurring" checked={isRecurring} onCheckedChange={setIsRecurring} />
               <Label htmlFor="recurring">Dépense récurrente</Label>
             </div>
 
             <div className="flex justify-end space-x-2">
               <Link href="/dashboard">
-                <Button variant="outline">Annuler</Button>
+                <Button type="button" variant="outline">
+                  Annuler
+                </Button>
               </Link>
-              <Button type="submit">Ajouter</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Ajout en cours...' : 'Ajouter'}
+              </Button>
             </div>
           </form>
         </CardContent>

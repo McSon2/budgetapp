@@ -1,15 +1,31 @@
 'use client';
 
+import { useDashboard } from '@/components/providers/MonthProvider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 interface SummaryCardProps {
-  income: number;
-  expenses: number;
+  income?: number;
+  expenses?: number;
   currency?: string;
 }
 
-export function SummaryCard({ income, expenses, currency = '€' }: SummaryCardProps) {
+export function SummaryCard({
+  income: propIncome,
+  expenses: propExpenses,
+  currency = '€',
+}: SummaryCardProps = {}) {
+  // Utiliser les données du contexte ou les props si fournies
+  const dashboardData = useDashboard();
+
+  const income = propIncome !== undefined ? propIncome : dashboardData.income;
+  const expenses = propExpenses !== undefined ? propExpenses : dashboardData.expenses;
+
+  // Formater le mois pour l'affichage
+  const formattedMonth = format(dashboardData.selectedMonth, 'MMMM yyyy', { locale: fr });
+
   const total = income - expenses;
   const percentage = income > 0 ? Math.min(100, Math.round((expenses / income) * 100)) : 100;
 
@@ -17,7 +33,7 @@ export function SummaryCard({ income, expenses, currency = '€' }: SummaryCardP
     <Card className="h-full">
       <CardHeader>
         <CardTitle>Récapitulatif</CardTitle>
-        <CardDescription>Entrées et sorties du mois en cours</CardDescription>
+        <CardDescription>Entrées et sorties de {formattedMonth}</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-6">

@@ -3,12 +3,14 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ListBulletIcon } from '@radix-ui/react-icons';
+import { Upload } from 'lucide-react';
+import Link from 'next/link';
 import { useState } from 'react';
 import { AddExpensePopover } from './AddExpensePopover';
 import { CategoriesManager } from './CategoriesManager';
 import { ExpensesList } from './ExpensesList';
 
-// Créer une icône de tag personnalisée si TagIcon n'est pas disponible dans radix-ui
+// Créer une icône de tag personnalisée
 function TagIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -36,7 +38,7 @@ export function ActionButtons() {
 
   return (
     <>
-      <Card>
+      <Card className="mb-6">
         <CardContent className="p-4">
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1">
@@ -64,18 +66,26 @@ export function ActionButtons() {
                 <span className="ml-2">Gérer les catégories</span>
               </Button>
             </div>
+            <div className="flex-1">
+              <Link href="/dashboard/import" className="w-full">
+                <Button variant="outline" className="w-full" size="lg">
+                  <Upload className="h-4 w-4 mr-2" />
+                  Importer CSV
+                </Button>
+              </Link>
+            </div>
           </div>
         </CardContent>
       </Card>
 
       {showExpensesList && (
-        <div className="mt-6">
+        <div className="mt-6 mb-6">
           <ExpensesList />
         </div>
       )}
 
       {showCategoriesManager && (
-        <div className="mt-6">
+        <div className="mt-6 mb-6">
           <CategoriesManager />
         </div>
       )}

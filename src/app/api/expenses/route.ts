@@ -2,7 +2,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { addExpense, getExpenses } from '@/lib/services/expenses-service';
 import { NextRequest, NextResponse } from 'next/server';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser();
 
@@ -10,7 +10,13 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const expenses = await getExpenses(user.id);
+    // Récupérer les paramètres de date de la requête
+    const searchParams = request.nextUrl.searchParams;
+    const startDate = searchParams.get('startDate') || undefined;
+    const endDate = searchParams.get('endDate') || undefined;
+
+    // Récupérer les dépenses avec les filtres de date
+    const expenses = await getExpenses(user.id, startDate, endDate);
     return NextResponse.json(expenses);
   } catch (error) {
     console.error('Error fetching expenses:', error);

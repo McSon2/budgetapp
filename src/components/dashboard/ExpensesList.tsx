@@ -31,11 +31,12 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Category } from '@/lib/services/categories-service';
 import { Expense } from '@/lib/services/expenses-service';
+import { useDateStore } from '@/lib/store/date-store';
 import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { format } from 'date-fns';
+import { endOfMonth, format, startOfMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -365,6 +366,154 @@ function EditExpenseDialog({
                           </FormControl>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="start">
+                          <div className="p-3 border-b">
+                            <div className="flex justify-between items-center mb-2">
+                              <h4 className="font-medium">Sélection rapide</h4>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 mb-3">
+                              <div>
+                                <label className="text-sm font-medium mb-1 block">Année</label>
+                                <Select
+                                  onValueChange={value => {
+                                    const newDate = new Date(field.value || new Date());
+                                    newDate.setFullYear(parseInt(value));
+                                    field.onChange(newDate);
+                                  }}
+                                  defaultValue={
+                                    field.value
+                                      ? field.value.getFullYear().toString()
+                                      : new Date().getFullYear().toString()
+                                  }
+                                >
+                                  <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Année" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {Array.from({ length: 10 }, (_, i) => {
+                                      const year = new Date().getFullYear() + i;
+                                      return (
+                                        <SelectItem key={year} value={year.toString()}>
+                                          {year}
+                                        </SelectItem>
+                                      );
+                                    })}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div>
+                                <label className="text-sm font-medium mb-1 block">Mois</label>
+                                <Select
+                                  onValueChange={value => {
+                                    const newDate = new Date(field.value || new Date());
+                                    newDate.setMonth(parseInt(value));
+                                    field.onChange(newDate);
+                                  }}
+                                  defaultValue={
+                                    field.value
+                                      ? field.value.getMonth().toString()
+                                      : new Date().getMonth().toString()
+                                  }
+                                >
+                                  <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Mois" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {Array.from({ length: 12 }, (_, i) => {
+                                      const date = new Date(2000, i, 1);
+                                      return (
+                                        <SelectItem key={i} value={i.toString()}>
+                                          {format(date, 'MMMM', { locale: fr })}
+                                        </SelectItem>
+                                      );
+                                    })}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div>
+                                <label className="text-sm font-medium mb-1 block">Jour</label>
+                                <Select
+                                  onValueChange={value => {
+                                    const newDate = new Date(field.value || new Date());
+                                    newDate.setDate(parseInt(value));
+                                    field.onChange(newDate);
+                                  }}
+                                  defaultValue={
+                                    field.value
+                                      ? field.value.getDate().toString()
+                                      : new Date().getDate().toString()
+                                  }
+                                >
+                                  <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Jour" />
+                                  </SelectTrigger>
+                                  <SelectContent className="h-[200px]">
+                                    {Array.from({ length: 31 }, (_, i) => {
+                                      const day = i + 1;
+                                      return (
+                                        <SelectItem key={day} value={day.toString()}>
+                                          {day}
+                                        </SelectItem>
+                                      );
+                                    })}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const today = new Date();
+                                  const futureDate = new Date(today);
+                                  futureDate.setFullYear(today.getFullYear() + 1);
+                                  field.onChange(futureDate);
+                                }}
+                              >
+                                + 1 an
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const today = new Date();
+                                  const futureDate = new Date(today);
+                                  futureDate.setFullYear(today.getFullYear() + 2);
+                                  field.onChange(futureDate);
+                                }}
+                              >
+                                + 2 ans
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const today = new Date();
+                                  const futureDate = new Date(today);
+                                  futureDate.setFullYear(today.getFullYear() + 5);
+                                  field.onChange(futureDate);
+                                }}
+                              >
+                                + 5 ans
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const today = new Date();
+                                  const futureDate = new Date(today);
+                                  futureDate.setMonth(today.getMonth() + 6);
+                                  field.onChange(futureDate);
+                                }}
+                              >
+                                + 6 mois
+                              </Button>
+                            </div>
+                          </div>
                           <Calendar
                             mode="single"
                             selected={field.value}
@@ -403,10 +552,25 @@ export function ExpensesList() {
   const [isLoading, setIsLoading] = useState(true);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
 
-  const fetchExpenses = async () => {
+  // Récupérer le mois sélectionné depuis le store
+  const { selectedMonth } = useDateStore();
+
+  // États pour le tri
+  const [sortField, setSortField] = useState<'name' | 'category' | 'date' | 'amount'>('date');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  const fetchExpenses = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/expenses');
+      // S'assurer que selectedMonth est un objet Date valide
+      const dateToUse = selectedMonth instanceof Date ? selectedMonth : new Date(selectedMonth);
+
+      // Obtenir le début et la fin du mois sélectionné
+      const start = startOfMonth(dateToUse).toISOString();
+      const end = endOfMonth(dateToUse).toISOString();
+
+      // Ajouter les paramètres de date à la requête
+      const response = await fetch(`/api/expenses?startDate=${start}&endDate=${end}`);
 
       if (!response.ok) {
         throw new Error('Failed to fetch expenses');
@@ -420,7 +584,7 @@ export function ExpensesList() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedMonth]);
 
   const fetchCategories = async () => {
     try {
@@ -477,6 +641,9 @@ export function ExpensesList() {
 
       setEditingExpense(null);
       toast.success('Transaction modifiée avec succès');
+
+      // Rafraîchir la liste des dépenses pour s'assurer que tout est à jour
+      fetchExpenses();
     } catch (error) {
       console.error('Failed to update expense:', error);
       toast.error('Impossible de modifier la transaction');
@@ -487,16 +654,79 @@ export function ExpensesList() {
     setEditingExpense(null);
   };
 
+  // Fonction pour gérer le tri
+  const handleSort = (field: 'name' | 'category' | 'date' | 'amount') => {
+    // Si on clique sur la même colonne, on inverse la direction
+    if (field === sortField) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Sinon, on trie par la nouvelle colonne dans l'ordre ascendant par défaut
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  // Fonction pour obtenir les dépenses triées
+  const getSortedExpenses = () => {
+    if (!expenses.length) return [];
+
+    return [...expenses].sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortField) {
+        case 'name':
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case 'category':
+          // Gérer le cas où la catégorie est undefined
+          const categoryA = a.category || '';
+          const categoryB = b.category || '';
+          comparison = categoryA.localeCompare(categoryB);
+          break;
+        case 'date':
+          comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
+          break;
+        case 'amount':
+          comparison = a.amount - b.amount;
+          break;
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  };
+
+  // Icône de tri
+  const SortIcon = ({ field }: { field: 'name' | 'category' | 'date' | 'amount' }) => {
+    if (field !== sortField) return null;
+
+    return <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>;
+  };
+
+  // Charger les dépenses et catégories au chargement initial
   useEffect(() => {
-    fetchExpenses();
     fetchCategories();
   }, []);
+
+  // Recharger les dépenses lorsque le mois sélectionné change
+  useEffect(() => {
+    fetchExpenses();
+  }, [selectedMonth, fetchExpenses]);
+
+  // Obtenir les dépenses triées
+  const sortedExpenses = getSortedExpenses();
+
+  // Formater le mois pour l'affichage
+  const formattedMonth = format(
+    selectedMonth instanceof Date ? selectedMonth : new Date(selectedMonth),
+    'MMMM yyyy',
+    { locale: fr }
+  );
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Vos Transactions</CardTitle>
-        <CardDescription>Consultez et gérez vos transactions récentes</CardDescription>
+        <CardDescription>Consultez et gérez vos transactions pour {formattedMonth}</CardDescription>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -506,13 +736,33 @@ export function ExpensesList() {
         ) : (
           <div className="rounded-md border">
             <div className="grid grid-cols-5 bg-muted p-4 font-medium">
-              <div>Nom</div>
-              <div>Catégorie</div>
-              <div>Date</div>
-              <div className="text-right">Montant</div>
+              <div
+                className="cursor-pointer hover:text-primary flex items-center"
+                onClick={() => handleSort('name')}
+              >
+                Nom <SortIcon field="name" />
+              </div>
+              <div
+                className="cursor-pointer hover:text-primary flex items-center"
+                onClick={() => handleSort('category')}
+              >
+                Catégorie <SortIcon field="category" />
+              </div>
+              <div
+                className="cursor-pointer hover:text-primary flex items-center"
+                onClick={() => handleSort('date')}
+              >
+                Date <SortIcon field="date" />
+              </div>
+              <div
+                className="cursor-pointer hover:text-primary flex items-center justify-end"
+                onClick={() => handleSort('amount')}
+              >
+                Montant <SortIcon field="amount" />
+              </div>
               <div className="text-right">Actions</div>
             </div>
-            {expenses.map(expense => (
+            {sortedExpenses.map(expense => (
               <div key={expense.id} className="grid grid-cols-5 p-4 border-t">
                 <div>{expense.name}</div>
                 <div>{expense.category}</div>
@@ -539,7 +789,8 @@ export function ExpensesList() {
             ))}
             {expenses.length === 0 && (
               <div className="p-4 text-center text-muted-foreground">
-                Aucune transaction trouvée. Ajoutez des transactions pour commencer.
+                Aucune transaction trouvée pour {formattedMonth}. Ajoutez des transactions pour
+                commencer.
               </div>
             )}
           </div>

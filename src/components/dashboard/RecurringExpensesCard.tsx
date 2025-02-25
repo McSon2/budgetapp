@@ -1,11 +1,12 @@
 'use client';
 
+import { useDashboard } from '@/components/providers/MonthProvider';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { UpdateIcon } from '@radix-ui/react-icons';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 interface RecurringExpense {
@@ -22,11 +23,27 @@ interface RecurringExpensesCardProps {
 }
 
 export function RecurringExpensesCard({
-  expenses: initialExpenses,
+  expenses: propExpenses,
   currency = '€',
-}: RecurringExpensesCardProps) {
+}: RecurringExpensesCardProps = {}) {
+  // Utiliser les données du contexte ou les props si fournies
+  const dashboardData = useDashboard();
+  const initialExpenses = propExpenses || dashboardData.recurringExpenses;
+
   const [expenses, setExpenses] = useState<RecurringExpense[]>(initialExpenses || []);
   const [isLoading, setIsLoading] = useState(!initialExpenses);
+
+  // Calculer le montant total des dépenses récurrentes
+  const totalRecurringAmount = useMemo(() => {
+    return expenses.reduce((total, expense) => total + expense.amount, 0);
+  }, [expenses]);
+
+  // Mettre à jour les dépenses lorsque les données du dashboard changent
+  useEffect(() => {
+    if (dashboardData.recurringExpenses && !propExpenses) {
+      setExpenses(dashboardData.recurringExpenses);
+    }
+  }, [dashboardData.recurringExpenses, propExpenses]);
 
   // Fonction pour formater la date en français
   const formatDate = (date: Date | string, expenseFrequency?: string) => {
@@ -104,11 +121,28 @@ export function RecurringExpensesCard({
     }
   }, [initialExpenses]);
 
+  // Trier les dépenses par date (les plus proches en premier)
+  const sortedExpenses = [...expenses].sort((a, b) => {
+    const dateA = new Date(a.nextDate);
+    const dateB = new Date(b.nextDate);
+    return dateA.getTime() - dateB.getTime();
+  });
+
   return (
     <Card className="h-full">
       <CardHeader>
         <CardTitle>Dépenses récurrentes</CardTitle>
         <CardDescription>Vos paiements réguliers à venir</CardDescription>
+        {!isLoading && expenses.length > 0 && (
+          <div className="mt-2 p-2 bg-muted rounded-md">
+            <p className="text-sm font-medium">
+              Total mensuel:{' '}
+              <span className="text-destructive">
+                {totalRecurringAmount.toLocaleString('fr-FR')} {currency}
+              </span>
+            </p>
+          </div>
+        )}
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -118,9 +152,18 @@ export function RecurringExpensesCard({
         ) : expenses.length === 0 ? (
           <p className="text-sm text-muted-foreground">Aucune dépense récurrente.</p>
         ) : (
-          <div className="space-y-4">
-            {expenses.slice(0, 5).map(expense => (
-              <div key={expense.id} className="flex items-center justify-between border-b pb-2">
+          <div
+            className="max-h-[350px] overflow-y-auto pr-1 scrollbar-hide"
+            style={{
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+            }}
+          >
+            {sortedExpenses.map(expense => (
+              <div
+                key={expense.id}
+                className="flex items-center justify-between border-b pb-2 mb-2"
+              >
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{expense.description}</span>
@@ -138,12 +181,6 @@ export function RecurringExpensesCard({
                 </span>
               </div>
             ))}
-
-            {expenses.length > 5 && (
-              <p className="text-xs text-center text-muted-foreground">
-                +{expenses.length - 5} autres dépenses récurrentes
-              </p>
-            )}
           </div>
         )}
       </CardContent>

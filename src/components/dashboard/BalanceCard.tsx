@@ -1,19 +1,29 @@
 'use client';
 
+import { useDashboard } from '@/components/providers/MonthProvider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowDownIcon, ArrowUpIcon } from '@radix-ui/react-icons';
 
 interface BalanceCardProps {
-  currentBalance: number;
-  endOfMonthBalance: number;
+  currentBalance?: number;
+  endOfMonthBalance?: number;
   currency?: string;
 }
 
 export function BalanceCard({
-  currentBalance,
-  endOfMonthBalance,
+  currentBalance: propCurrentBalance,
+  endOfMonthBalance: propEndOfMonthBalance,
   currency = '€',
-}: BalanceCardProps) {
+}: BalanceCardProps = {}) {
+  // Utiliser les données du contexte ou les props si fournies
+  const dashboardData = useDashboard();
+
+  const currentBalance =
+    propCurrentBalance !== undefined ? propCurrentBalance : dashboardData.currentBalance;
+
+  const endOfMonthBalance =
+    propEndOfMonthBalance !== undefined ? propEndOfMonthBalance : dashboardData.endOfMonthBalance;
+
   const isPositiveChange = endOfMonthBalance >= currentBalance;
   const changeAmount = Math.abs(endOfMonthBalance - currentBalance);
   const changePercentage =

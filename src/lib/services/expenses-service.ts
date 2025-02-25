@@ -12,10 +12,36 @@ export type Expense = {
   recurrenceEndDate?: string;
 };
 
-export async function getExpenses(userId: string): Promise<Expense[]> {
+export async function getExpenses(
+  userId: string,
+  startDate?: string,
+  endDate?: string
+): Promise<Expense[]> {
+  // Préparer les conditions de filtrage
+  const whereCondition: {
+    userId: string;
+    date?: {
+      gte?: Date;
+      lte?: Date;
+    };
+  } = { userId };
+
+  // Ajouter le filtrage par date si les dates sont fournies
+  if (startDate || endDate) {
+    whereCondition.date = {};
+
+    if (startDate) {
+      whereCondition.date.gte = new Date(startDate);
+    }
+
+    if (endDate) {
+      whereCondition.date.lte = new Date(endDate);
+    }
+  }
+
   // Récupérer les dépenses depuis la base de données via Prisma
   const dbExpenses = await prisma.expense.findMany({
-    where: { userId },
+    where: whereCondition,
     include: { category: true, recurrence: true },
     orderBy: { date: 'desc' },
   });
