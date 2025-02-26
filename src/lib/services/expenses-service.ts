@@ -23,6 +23,7 @@ const normalizeDate = (date: Date | string): Date => {
   // Créer une nouvelle date avec le jour spécifié à midi UTC
   // Utiliser midi (12:00) au lieu de minuit (00:00) pour éviter les problèmes de fuseau horaire
   const normalized = new Date(Date.UTC(year, month, day, 12, 0, 0, 0));
+  console.log(`Normalizing date: ${dateObj.toISOString()} -> ${normalized.toISOString()}`);
   return normalized;
 };
 
@@ -31,6 +32,8 @@ export async function getExpenses(
   startDate?: string,
   endDate?: string
 ): Promise<Expense[]> {
+  console.log(`Getting expenses for user ${userId} from ${startDate} to ${endDate}`);
+
   // Préparer les conditions de filtrage
   const whereCondition: {
     userId: string;
@@ -53,12 +56,16 @@ export async function getExpenses(
     }
   }
 
+  console.log('Where condition:', JSON.stringify(whereCondition, null, 2));
+
   // Récupérer les dépenses depuis la base de données via Prisma
   const dbExpenses = await prisma.expense.findMany({
     where: whereCondition,
     include: { category: true, recurrence: true },
     orderBy: { date: 'desc' },
   });
+
+  console.log(`Found ${dbExpenses.length} expenses`);
 
   // Transformer les données de la base de données au format attendu par le frontend
   return dbExpenses.map(expense => ({

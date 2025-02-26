@@ -600,6 +600,7 @@ export function ExpensesList() {
   const normalizeToEndOfMonth = (date: Date | string): Date => {
     const dateObj = typeof date === 'string' ? new Date(date) : date;
     const normalized = new Date(dateObj);
+    // Calculer le dernier jour du mois
     const lastDay = new Date(
       normalized.getUTCFullYear(),
       normalized.getUTCMonth() + 1,
@@ -622,6 +623,8 @@ export function ExpensesList() {
       const start = normalizeToStartOfMonth(dateToUse).toISOString();
       const end = normalizeToEndOfMonth(dateToUse).toISOString();
 
+      console.log('Fetching expenses from', start, 'to', end);
+
       // Ajouter les paramètres de date à la requête
       const response = await fetch(`/api/expenses?startDate=${start}&endDate=${end}`);
 
@@ -630,6 +633,7 @@ export function ExpensesList() {
       }
 
       const data = await response.json();
+      console.log('Fetched expenses:', data);
       setExpenses(data);
       // Réinitialiser le scroll infini
       setDisplayLimit(10);
