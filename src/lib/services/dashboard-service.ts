@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { isAfter, isBefore, isSameDay } from 'date-fns';
+import { addDays, addMonths, addWeeks, addYears, isAfter, isBefore, isSameDay } from 'date-fns';
 
 export interface DashboardData {
   currentBalance: number;
@@ -98,12 +98,15 @@ export async function getDashboardData(
     .filter(expense => expense.amount > 0)
     .reduce((acc, expense) => acc + expense.amount, 0);
 
-  // Calculer le solde de fin de mois (solde actuel + dépenses futures du mois)
   const futureExpenses = monthExpenses
     .filter(
       expense => isAfter(new Date(expense.date), today) && !isSameDay(new Date(expense.date), today)
     )
     .reduce((acc, expense) => acc + expense.amount, 0);
+
+  monthExpenses.filter(
+    expense => isAfter(new Date(expense.date), today) && !isSameDay(new Date(expense.date), today)
+  );
 
   const endOfMonthBalance = currentBalance + futureExpenses;
 
@@ -117,6 +120,22 @@ export async function getDashboardData(
       frequency: expense.recurrence?.frequency || 'monthly',
       nextDate: expense.recurrence?.startDate || new Date(),
     }));
+
+  // Générer les occurrences futures des dépenses récurrentes pour le mois en cours
+  const generatedFutureOccurrences = generateFutureOccurrencesForMonth(
+    recurringExpenses,
+    today,
+    endDate
+  );
+
+  // Calculer le montant total des occurrences futures générées
+  const generatedFutureAmount = generatedFutureOccurrences.reduce(
+    (acc, occurrence) => acc + occurrence.amount,
+    0
+  );
+
+  // Ajouter les occurrences futures générées au solde de fin de mois
+  const endOfMonthBalanceWithRecurring = endOfMonthBalance + generatedFutureAmount;
 
   // Calculer les dépenses par catégorie
   const categoryExpensesMap = new Map<string, { name: string; amount: number; color: string }>();
@@ -145,11 +164,99 @@ export async function getDashboardData(
 
   return {
     currentBalance,
-    endOfMonthBalance,
+    endOfMonthBalance: endOfMonthBalanceWithRecurring,
     income: monthlyIncomeTotal,
     expenses: monthlyExpensesTotal,
     recurringExpenses: recurringExpenses,
     categoryExpenses,
     selectedMonth: normalizedDate,
   };
+}
+
+/**
+ * Génère les occurrences futures des dépenses récurrentes pour le mois en cours
+ */
+function generateFutureOccurrencesForMonth(
+  recurringExpenses: {
+    id: string;
+    description: string;
+    amount: number;
+    frequency: string;
+    nextDate: Date;
+  }[],
+  today: Date,
+  endDate: Date
+): { description: string; amount: number; date: Date }[] {
+  const occurrences: { description: string; amount: number; date: Date }[] = [];
+
+  recurringExpenses.forEach(expense => {
+    const { description, amount, frequency, nextDate } = expense;
+    let currentDate = new Date(nextDate);
+
+    // Si la prochaine date est après la fin du mois, on ignore cette dépense
+    if (isAfter(currentDate, endDate)) {
+      return;
+    }
+
+    // Si la prochaine date est avant aujourd'hui, on calcule la prochaine occurrence
+    if (isBefore(currentDate, today)) {
+      switch (frequency) {
+        case 'daily':
+          currentDate = addDays(today, 1);
+          break;
+        case 'weekly':
+          // Trouver la prochaine occurrence hebdomadaire
+          while (isBefore(currentDate, today)) {
+            currentDate = addWeeks(currentDate, 1);
+          }
+          break;
+        case 'monthly':
+          // Trouver la prochaine occurrence mensuelle
+          while (isBefore(currentDate, today)) {
+            currentDate = addMonths(currentDate, 1);
+          }
+          break;
+        case 'yearly':
+          // Trouver la prochaine occurrence annuelle
+          while (isBefore(currentDate, today)) {
+            currentDate = addYears(currentDate, 1);
+          }
+          break;
+      }
+    }
+
+    // Générer toutes les occurrences jusqu'à la fin du mois
+    while (!isAfter(currentDate, endDate)) {
+      // Vérifier si la date est dans le futur par rapport à aujourd'hui
+      if (isAfter(currentDate, today)) {
+        occurrences.push({
+          description,
+          amount, // Utiliser le montant original (peut être négatif)
+          date: new Date(currentDate),
+        });
+      }
+
+      // Calculer la prochaine occurrence
+      switch (frequency) {
+        case 'daily':
+          currentDate = addDays(currentDate, 1);
+          break;
+        case 'weekly':
+          currentDate = addWeeks(currentDate, 1);
+          break;
+        case 'monthly':
+          currentDate = addMonths(currentDate, 1);
+          break;
+        case 'yearly':
+          currentDate = addYears(currentDate, 1);
+          break;
+        default:
+          // Par défaut, on arrête la génération
+          currentDate = new Date(endDate);
+          currentDate = addDays(currentDate, 1); // Pour sortir de la boucle
+      }
+    }
+  });
+
+  return occurrences;
 }
