@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { isAfter, isBefore } from 'date-fns';
+import { isAfter, isBefore, isSameDay } from 'date-fns';
 
 export interface DashboardData {
   currentBalance: number;
@@ -75,14 +75,19 @@ export async function getDashboardData(
 
   // Calculer le solde actuel (toutes les dépenses jusqu'à aujourd'hui)
   const currentBalance = expenses
-    .filter(expense => isBefore(new Date(expense.date), today))
+    .filter(
+      expense => isBefore(new Date(expense.date), today) || isSameDay(new Date(expense.date), today)
+    )
     .reduce((acc, expense) => acc + expense.amount, 0);
 
   // Calculer les dépenses du mois sélectionné
-  const monthExpenses = expenses.filter(
-    expense =>
-      isAfter(new Date(expense.date), startDate) && isBefore(new Date(expense.date), endDate)
-  );
+  const monthExpenses = expenses.filter(expense => {
+    const expenseDate = new Date(expense.date);
+    return (
+      (isAfter(expenseDate, startDate) || isSameDay(expenseDate, startDate)) &&
+      (isBefore(expenseDate, endDate) || isSameDay(expenseDate, endDate))
+    );
+  });
 
   // Calculer le total des dépenses et revenus du mois
   const monthlyExpensesTotal = monthExpenses
@@ -95,7 +100,9 @@ export async function getDashboardData(
 
   // Calculer le solde de fin de mois (solde actuel + dépenses futures du mois)
   const futureExpenses = monthExpenses
-    .filter(expense => isAfter(new Date(expense.date), today))
+    .filter(
+      expense => isAfter(new Date(expense.date), today) && !isSameDay(new Date(expense.date), today)
+    )
     .reduce((acc, expense) => acc + expense.amount, 0);
 
   const endOfMonthBalance = currentBalance + futureExpenses;

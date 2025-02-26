@@ -156,7 +156,7 @@ function EditExpenseDialog({
         if (!isOpen) onCancel();
       }}
     >
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-[425px] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Modifier la transaction</DialogTitle>
           <DialogDescription>Modifiez les détails de votre transaction</DialogDescription>
@@ -241,7 +241,12 @@ function EditExpenseDialog({
                         </Button>
                       </FormControl>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
+                    <PopoverContent
+                      className="w-auto p-0 border-2 shadow-lg backdrop-blur-sm bg-background/95 rounded-xl"
+                      align="start"
+                      side="bottom"
+                      avoidCollisions={true}
+                    >
                       <Calendar
                         mode="single"
                         selected={field.value}
@@ -368,7 +373,12 @@ function EditExpenseDialog({
                             </Button>
                           </FormControl>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
+                        <PopoverContent
+                          className="w-auto p-0 border-2 shadow-lg backdrop-blur-sm bg-background/95 rounded-xl"
+                          align="start"
+                          side="bottom"
+                          avoidCollisions={true}
+                        >
                           <div className="p-3 border-b">
                             <div className="flex justify-between items-center mb-2">
                               <h4 className="font-medium">Sélection rapide</h4>
@@ -1258,10 +1268,21 @@ export function ExpensesList() {
                   Sélection multiple
                 </Button>
               ) : (
-                <div className="sm:hidden">
+                <div className="sm:hidden flex items-center gap-2">
                   {selectedExpenses.length > 0 && (
-                    <span className="text-xs mr-2">{selectedExpenses.length} sélectionné(s)</span>
+                    <span className="text-xs">{selectedExpenses.length} sélectionné(s)</span>
                   )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSelectAll}
+                    className="text-xs px-2 h-8"
+                  >
+                    {selectedExpenses.length === filteredAndSortedExpenses.length &&
+                    filteredAndSortedExpenses.length > 0
+                      ? 'Désélectionner tout'
+                      : 'Tout sélectionner'}
+                  </Button>
                 </div>
               )}
             </div>

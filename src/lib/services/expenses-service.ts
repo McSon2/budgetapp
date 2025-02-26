@@ -15,8 +15,14 @@ export type Expense = {
 // Fonction utilitaire pour normaliser une date en UTC
 const normalizeDate = (date: Date | string): Date => {
   const dateObj = typeof date === 'string' ? new Date(date) : date;
-  const normalized = new Date(dateObj);
-  normalized.setUTCHours(0, 0, 0, 0);
+  // Créer une nouvelle date en préservant le jour, mois et année
+  const year = dateObj.getFullYear();
+  const month = dateObj.getMonth();
+  const day = dateObj.getDate();
+
+  // Créer une nouvelle date avec le jour spécifié à midi UTC
+  // Utiliser midi (12:00) au lieu de minuit (00:00) pour éviter les problèmes de fuseau horaire
+  const normalized = new Date(Date.UTC(year, month, day, 12, 0, 0, 0));
   return normalized;
 };
 
