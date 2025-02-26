@@ -2,6 +2,8 @@
 
 A comprehensive personal finance management application built with Next.js, Prisma, and PostgreSQL.
 
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/O8jlr9?referralCode=B5MxwU)
+
 ## Features
 
 - **Dashboard**: Overview of your financial situation with charts and summaries
