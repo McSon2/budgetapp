@@ -25,7 +25,11 @@ export function SummaryCard({
   // Formater le mois pour l'affichage
   const formattedMonth = format(dashboardData.selectedMonth, 'MMMM yyyy', { locale: fr });
 
-  const total = income - expenses;
+  // S'assurer que les valeurs sont positives pour l'affichage
+  const positiveIncome = Math.abs(income);
+  const positiveExpenses = Math.abs(expenses);
+
+  const total = income - positiveExpenses; // Calcul du total en tenant compte du signe des dépenses
 
   return (
     <Card className="h-full">
@@ -39,13 +43,13 @@ export function SummaryCard({
             <div className="flex justify-between">
               <span className="text-sm font-medium text-muted-foreground">Entrées</span>
               <span className="text-sm font-medium text-green-500">
-                +{income.toLocaleString('fr-FR')} {currency}
+                +{positiveIncome.toLocaleString('fr-FR')} {currency}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-sm font-medium text-muted-foreground">Sorties</span>
               <span className="text-sm font-medium text-red-500">
-                -{expenses.toLocaleString('fr-FR')} {currency}
+                -{positiveExpenses.toLocaleString('fr-FR')} {currency}
               </span>
             </div>
             <div className="flex justify-between">

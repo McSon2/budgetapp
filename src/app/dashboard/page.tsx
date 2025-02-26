@@ -22,26 +22,32 @@ export default async function DashboardPage() {
 
   return (
     <MonthProvider initialData={dashboardData}>
-      <div className="container mx-auto py-6 space-y-6">
+      <div className="container px-4 sm:px-6 mx-auto py-4 sm:py-6 space-y-4 sm:space-y-6 max-w-7xl">
         <DashboardHeader title="Tableau de bord" />
 
         {/* Action buttons */}
-        <div className="mb-6">
+        <div className="mb-4 sm:mb-6">
           <ActionButtons />
         </div>
 
         {/* Main dashboard content */}
         <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="grid w-full md:w-auto grid-cols-2 md:grid-cols-3 mb-4">
-            <TabsTrigger value="overview">Vue d&apos;ensemble</TabsTrigger>
-            <TabsTrigger value="transactions">Transactions</TabsTrigger>
-            <TabsTrigger value="categories">Catégories</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-3 mb-4 overflow-x-auto">
+            <TabsTrigger value="overview" className="text-xs sm:text-sm">
+              Vue d&apos;ensemble
+            </TabsTrigger>
+            <TabsTrigger value="transactions" className="text-xs sm:text-sm">
+              Transactions
+            </TabsTrigger>
+            <TabsTrigger value="categories" className="text-xs sm:text-sm">
+              Catégories
+            </TabsTrigger>
           </TabsList>
 
           {/* Overview Tab */}
-          <TabsContent value="overview" className="space-y-6">
+          <TabsContent value="overview" className="space-y-4 sm:space-y-6">
             {/* Financial summary cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               <BalanceCard />
               <SummaryCard />
               <RecurringExpensesCard />

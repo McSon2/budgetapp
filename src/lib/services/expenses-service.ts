@@ -12,6 +12,14 @@ export type Expense = {
   recurrenceEndDate?: string;
 };
 
+// Fonction utilitaire pour normaliser une date en UTC
+const normalizeDate = (date: Date | string): Date => {
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  const normalized = new Date(dateObj);
+  normalized.setUTCHours(0, 0, 0, 0);
+  return normalized;
+};
+
 export async function getExpenses(
   userId: string,
   startDate?: string,
@@ -31,11 +39,11 @@ export async function getExpenses(
     whereCondition.date = {};
 
     if (startDate) {
-      whereCondition.date.gte = new Date(startDate);
+      whereCondition.date.gte = normalizeDate(startDate);
     }
 
     if (endDate) {
-      whereCondition.date.lte = new Date(endDate);
+      whereCondition.date.lte = normalizeDate(endDate);
     }
   }
 
@@ -103,8 +111,8 @@ export async function addExpense(
       data: {
         frequency: expense.recurrence.frequency,
         interval: 1,
-        startDate: new Date(expense.recurrence.startDate),
-        endDate: expense.recurrence.endDate ? new Date(expense.recurrence.endDate) : null,
+        startDate: normalizeDate(expense.recurrence.startDate),
+        endDate: expense.recurrence.endDate ? normalizeDate(expense.recurrence.endDate) : null,
       },
     });
 
@@ -116,7 +124,7 @@ export async function addExpense(
     data: {
       description: expense.name,
       amount: expense.amount,
-      date: new Date(expense.date),
+      date: normalizeDate(expense.date),
       isRecurring: expense.isRecurring || false,
       userId,
       categoryId,
@@ -202,8 +210,8 @@ export async function updateExpense(
           data: {
             frequency: expense.recurrence.frequency,
             interval: 1,
-            startDate: new Date(expense.recurrence.startDate),
-            endDate: expense.recurrence.endDate ? new Date(expense.recurrence.endDate) : null,
+            startDate: normalizeDate(expense.recurrence.startDate),
+            endDate: expense.recurrence.endDate ? normalizeDate(expense.recurrence.endDate) : null,
           },
         });
         recurrenceId = existingExpense.recurrenceId;
@@ -213,8 +221,8 @@ export async function updateExpense(
           data: {
             frequency: expense.recurrence.frequency,
             interval: 1,
-            startDate: new Date(expense.recurrence.startDate),
-            endDate: expense.recurrence.endDate ? new Date(expense.recurrence.endDate) : null,
+            startDate: normalizeDate(expense.recurrence.startDate),
+            endDate: expense.recurrence.endDate ? normalizeDate(expense.recurrence.endDate) : null,
           },
         });
         recurrenceId = newRecurrence.id;
@@ -231,7 +239,7 @@ export async function updateExpense(
     data: {
       description: expense.name,
       amount: expense.amount,
-      date: expense.date ? new Date(expense.date) : undefined,
+      date: expense.date ? normalizeDate(expense.date) : undefined,
       categoryId,
       isRecurring: expense.isRecurring,
       recurrenceId,

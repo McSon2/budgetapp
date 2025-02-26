@@ -1,8 +1,10 @@
 'use client';
 
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -34,9 +36,10 @@ import { Expense } from '@/lib/services/expenses-service';
 import { useDateStore } from '@/lib/store/date-store';
 import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { endOfMonth, format, startOfMonth } from 'date-fns';
+import { CheckIcon, UpdateIcon } from '@radix-ui/react-icons';
+import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -552,6 +555,10 @@ export function ExpensesList() {
   const [isLoading, setIsLoading] = useState(true);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
 
+  // État pour la sélection multiple
+  const [selectedExpenses, setSelectedExpenses] = useState<string[]>([]);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+
   // Filtres et recherche
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
@@ -564,19 +571,46 @@ export function ExpensesList() {
   const [sortField, setSortField] = useState<'name' | 'category' | 'date' | 'amount'>('date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
-  // Pagination
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  // Scroll infini au lieu de pagination
+  const [displayLimit, setDisplayLimit] = useState(10);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const observerTarget = useRef<HTMLDivElement>(null);
+
+  // Fonction utilitaire pour normaliser une date au début du mois en UTC
+  const normalizeToStartOfMonth = (date: Date | string): Date => {
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    const normalized = new Date(dateObj);
+    normalized.setUTCDate(1);
+    normalized.setUTCHours(0, 0, 0, 0);
+    return normalized;
+  };
+
+  // Fonction utilitaire pour normaliser une date à la fin du mois en UTC
+  const normalizeToEndOfMonth = (date: Date | string): Date => {
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    const normalized = new Date(dateObj);
+    const lastDay = new Date(
+      normalized.getUTCFullYear(),
+      normalized.getUTCMonth() + 1,
+      0
+    ).getUTCDate();
+    normalized.setUTCDate(lastDay);
+    normalized.setUTCHours(23, 59, 59, 999);
+    return normalized;
+  };
 
   const fetchExpenses = useCallback(async () => {
     setIsLoading(true);
     try {
-      // S'assurer que selectedMonth est un objet Date valide
-      const dateToUse = selectedMonth instanceof Date ? selectedMonth : new Date(selectedMonth);
+      // S'assurer que selectedMonth est un objet Date valide et normalisé
+      const dateToUse = normalizeToStartOfMonth(
+        selectedMonth instanceof Date ? selectedMonth : new Date(selectedMonth)
+      );
 
-      // Obtenir le début et la fin du mois sélectionné
-      const start = startOfMonth(dateToUse).toISOString();
-      const end = endOfMonth(dateToUse).toISOString();
+      // Obtenir le début et la fin du mois sélectionné en UTC
+      const start = normalizeToStartOfMonth(dateToUse).toISOString();
+      const end = normalizeToEndOfMonth(dateToUse).toISOString();
 
       // Ajouter les paramètres de date à la requête
       const response = await fetch(`/api/expenses?startDate=${start}&endDate=${end}`);
@@ -587,6 +621,9 @@ export function ExpensesList() {
 
       const data = await response.json();
       setExpenses(data);
+      // Réinitialiser le scroll infini
+      setDisplayLimit(10);
+      setHasMore(data.length > 10);
     } catch (error) {
       console.error('Failed to fetch expenses:', error);
       toast.error('Impossible de récupérer les dépenses');
@@ -594,6 +631,53 @@ export function ExpensesList() {
       setIsLoading(false);
     }
   }, [selectedMonth]);
+
+  // Fonction pour charger plus de transactions
+  const loadMore = useCallback(() => {
+    if (isLoadingMore || !hasMore) return;
+
+    setIsLoadingMore(true);
+
+    // Simuler un délai de chargement pour une meilleure UX
+    setTimeout(() => {
+      setDisplayLimit(prev => prev + 10);
+      setIsLoadingMore(false);
+
+      // Vérifier s'il y a plus de transactions à charger
+      const filteredExpenses = getFilteredAndSortedExpenses();
+      setHasMore(displayLimit + 10 < filteredExpenses.length);
+    }, 300);
+  }, [isLoadingMore, hasMore, displayLimit]);
+
+  // Observer pour le scroll infini
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting && hasMore) {
+          loadMore();
+        }
+      },
+      { threshold: 0.5 }
+    );
+
+    const currentTarget = observerTarget.current;
+    if (currentTarget) {
+      observer.observe(currentTarget);
+    }
+
+    return () => {
+      if (currentTarget) {
+        observer.unobserve(currentTarget);
+      }
+    };
+  }, [loadMore, hasMore]);
+
+  // Réinitialiser le scroll infini lors du changement de filtres
+  useEffect(() => {
+    setDisplayLimit(10);
+    const filteredExpenses = getFilteredAndSortedExpenses();
+    setHasMore(filteredExpenses.length > 10);
+  }, [searchTerm, categoryFilter, typeFilter, sortField, sortDirection]);
 
   const fetchCategories = async () => {
     try {
@@ -740,26 +824,13 @@ export function ExpensesList() {
   // Recharger les dépenses lorsque le mois sélectionné change
   useEffect(() => {
     fetchExpenses();
-    // Réinitialiser la pagination lors du changement de mois
-    setCurrentPage(1);
   }, [selectedMonth, fetchExpenses]);
-
-  // Réinitialiser la pagination lors du changement de filtres
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, categoryFilter, typeFilter]);
 
   // Obtenir les dépenses filtrées et triées
   const filteredAndSortedExpenses = getFilteredAndSortedExpenses();
 
-  // Calculer les dépenses paginées
-  const paginatedExpenses = filteredAndSortedExpenses.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
-  // Calculer le nombre total de pages
-  const totalPages = Math.ceil(filteredAndSortedExpenses.length / itemsPerPage);
+  // Obtenir les dépenses à afficher (avec limite pour scroll infini)
+  const displayedExpenses = filteredAndSortedExpenses.slice(0, displayLimit);
 
   // Formater le mois pour l'affichage
   const formattedMonth = format(
@@ -768,15 +839,107 @@ export function ExpensesList() {
     { locale: fr }
   );
 
+  // Fonction pour gérer la sélection d'une transaction
+  const handleSelectExpense = (id: string) => {
+    setSelectedExpenses(prev => {
+      if (prev.includes(id)) {
+        return prev.filter(expenseId => expenseId !== id);
+      } else {
+        return [...prev, id];
+      }
+    });
+  };
+
+  // Fonction pour sélectionner ou désélectionner toutes les transactions
+  const handleSelectAll = () => {
+    if (selectedExpenses.length === filteredAndSortedExpenses.length) {
+      // Si toutes sont sélectionnées, on désélectionne tout
+      setSelectedExpenses([]);
+    } else {
+      // Sinon, on sélectionne toutes les transactions filtrées
+      setSelectedExpenses(filteredAndSortedExpenses.map(expense => expense.id));
+    }
+  };
+
+  // Fonction pour supprimer les transactions sélectionnées
+  const handleDeleteSelected = async () => {
+    if (selectedExpenses.length === 0) return;
+
+    const confirmDelete = window.confirm(
+      `Êtes-vous sûr de vouloir supprimer ${selectedExpenses.length} transaction(s) ?`
+    );
+
+    if (!confirmDelete) return;
+
+    try {
+      const response = await fetch('/api/expenses/batch-delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ids: selectedExpenses }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete expenses');
+      }
+
+      // Mettre à jour l'état local
+      setExpenses(prev => prev.filter(expense => !selectedExpenses.includes(expense.id)));
+      setSelectedExpenses([]);
+      setIsSelectionMode(false);
+      toast.success(`${selectedExpenses.length} transaction(s) supprimée(s) avec succès`);
+    } catch (error) {
+      console.error('Failed to delete expenses:', error);
+      toast.error('Impossible de supprimer les transactions');
+    }
+  };
+
+  // Fonction pour quitter le mode sélection
+  const handleCancelSelection = () => {
+    setSelectedExpenses([]);
+    setIsSelectionMode(false);
+  };
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Vos Transactions</CardTitle>
-        <CardDescription>Consultez et gérez vos transactions pour {formattedMonth}</CardDescription>
+        <div className="flex justify-between items-center">
+          <div>
+            <CardTitle className="text-lg sm:text-xl">Vos Transactions</CardTitle>
+            <CardDescription className="text-xs sm:text-sm">
+              Consultez et gérez vos transactions pour {formattedMonth}
+            </CardDescription>
+          </div>
+          {!isSelectionMode ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsSelectionMode(true)}
+              className="hidden sm:flex"
+            >
+              Sélection multiple
+            </Button>
+          ) : (
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={handleCancelSelection}>
+                Annuler
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDeleteSelected}
+                disabled={selectedExpenses.length === 0}
+              >
+                Supprimer ({selectedExpenses.length})
+              </Button>
+            </div>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Filtres et recherche */}
-        <div className="flex flex-col md:flex-row gap-4 mb-4">
+        <div className="flex flex-col sm:flex-row gap-3 mb-4">
           <div className="flex-1">
             <Input
               placeholder="Rechercher une transaction..."
@@ -785,9 +948,9 @@ export function ExpensesList() {
               className="w-full"
             />
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-col sm:flex-row sm:flex-nowrap">
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="Toutes les catégories" />
               </SelectTrigger>
               <SelectContent>
@@ -804,7 +967,7 @@ export function ExpensesList() {
               value={typeFilter}
               onValueChange={(value: 'all' | 'expense' | 'income') => setTypeFilter(value)}
             >
-              <SelectTrigger className="w-[150px]">
+              <SelectTrigger className="w-full sm:w-[150px]">
                 <SelectValue placeholder="Tous les types" />
               </SelectTrigger>
               <SelectContent>
@@ -823,72 +986,239 @@ export function ExpensesList() {
         ) : (
           <>
             <div className="rounded-md border overflow-hidden">
-              <div className="grid grid-cols-5 bg-muted p-4 font-medium">
+              {/* En-tête du tableau - visible uniquement sur tablette/desktop */}
+              <div className="hidden sm:grid sm:grid-cols-12 bg-muted p-3 font-medium text-xs sm:text-sm">
+                {isSelectionMode && (
+                  <div className="sm:col-span-1 flex items-center">
+                    <Checkbox
+                      checked={
+                        selectedExpenses.length === filteredAndSortedExpenses.length &&
+                        filteredAndSortedExpenses.length > 0
+                      }
+                      onCheckedChange={handleSelectAll}
+                      id="select-all"
+                      aria-label="Sélectionner toutes les transactions"
+                    />
+                    <label htmlFor="select-all" className="ml-2 text-xs cursor-pointer">
+                      Tout
+                    </label>
+                  </div>
+                )}
                 <div
-                  className="cursor-pointer hover:text-primary flex items-center"
+                  className={`${isSelectionMode ? 'sm:col-span-2' : 'sm:col-span-3'} cursor-pointer hover:text-primary flex items-center`}
                   onClick={() => handleSort('name')}
                 >
                   Nom <SortIcon field="name" />
                 </div>
                 <div
-                  className="cursor-pointer hover:text-primary flex items-center"
+                  className="sm:col-span-2 cursor-pointer hover:text-primary flex items-center"
                   onClick={() => handleSort('category')}
                 >
                   Catégorie <SortIcon field="category" />
                 </div>
                 <div
-                  className="cursor-pointer hover:text-primary flex items-center"
+                  className="sm:col-span-2 cursor-pointer hover:text-primary flex items-center"
                   onClick={() => handleSort('date')}
                 >
                   Date <SortIcon field="date" />
                 </div>
                 <div
-                  className="cursor-pointer hover:text-primary flex items-center justify-end"
+                  className="sm:col-span-2 cursor-pointer hover:text-primary flex items-center justify-end"
                   onClick={() => handleSort('amount')}
                 >
                   Montant <SortIcon field="amount" />
                 </div>
-                <div className="text-right">Actions</div>
+                <div
+                  className={`${isSelectionMode ? 'sm:col-span-3' : 'sm:col-span-3'} text-right`}
+                >
+                  Actions
+                </div>
               </div>
 
-              {paginatedExpenses.length > 0 ? (
+              {displayedExpenses.length > 0 ? (
                 <>
-                  {paginatedExpenses.map(expense => (
-                    <div
-                      key={expense.id}
-                      className="grid grid-cols-5 p-4 border-t hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="truncate">{expense.name}</div>
-                      <div>
-                        {expense.category ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
-                            {expense.category}
-                          </span>
+                  <div className="max-h-[60vh] overflow-y-auto">
+                    {displayedExpenses.map(expense => (
+                      <div
+                        key={expense.id}
+                        className={`border-t hover:bg-muted/50 transition-colors ${
+                          selectedExpenses.includes(expense.id) ? 'bg-primary/5' : ''
+                        }`}
+                      >
+                        {/* Version mobile */}
+                        <div className="sm:hidden p-3 space-y-2">
+                          <div className="flex justify-between items-start">
+                            <div className="font-medium flex items-center gap-1">
+                              {isSelectionMode && (
+                                <Checkbox
+                                  checked={selectedExpenses.includes(expense.id)}
+                                  onCheckedChange={() => handleSelectExpense(expense.id)}
+                                  className="mr-2"
+                                  aria-label={`Sélectionner ${expense.name}`}
+                                />
+                              )}
+                              {expense.name}
+                              {expense.isRecurring && (
+                                <Badge variant="outline" className="ml-1 text-[10px] h-4 px-1 py-0">
+                                  <UpdateIcon className="h-2.5 w-2.5 mr-0.5" />
+                                </Badge>
+                              )}
+                            </div>
+                            <div
+                              className={`font-medium ${expense.amount < 0 ? 'text-red-500' : 'text-green-500'}`}
+                            >
+                              {expense.amount.toFixed(2)} €
+                            </div>
+                          </div>
+
+                          <div className="flex justify-between items-center">
+                            <div className="text-xs text-muted-foreground">
+                              {new Date(expense.date).toLocaleDateString()}
+                            </div>
+                            {expense.category ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                                {expense.category}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">Non catégorisé</span>
+                            )}
+                          </div>
+
+                          <div className="flex justify-end gap-2 pt-1">
+                            {!isSelectionMode ? (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEdit(expense)}
+                                  className="h-8 px-2 text-xs"
+                                >
+                                  Modifier
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-100"
+                                  onClick={() => handleDelete(expense.id)}
+                                >
+                                  Supprimer
+                                </Button>
+                              </>
+                            ) : (
+                              <Button
+                                variant={
+                                  selectedExpenses.includes(expense.id) ? 'default' : 'outline'
+                                }
+                                size="sm"
+                                className="h-8 px-2 text-xs"
+                                onClick={() => handleSelectExpense(expense.id)}
+                              >
+                                {selectedExpenses.includes(expense.id) ? (
+                                  <>
+                                    <CheckIcon className="mr-1 h-4 w-4" /> Sélectionné
+                                  </>
+                                ) : (
+                                  'Sélectionner'
+                                )}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Version desktop */}
+                        <div className="hidden sm:grid sm:grid-cols-12 p-3 items-center">
+                          {isSelectionMode && (
+                            <div className="sm:col-span-1 flex items-center">
+                              <Checkbox
+                                checked={selectedExpenses.includes(expense.id)}
+                                onCheckedChange={() => handleSelectExpense(expense.id)}
+                                aria-label={`Sélectionner ${expense.name}`}
+                              />
+                            </div>
+                          )}
+                          <div
+                            className={`${isSelectionMode ? 'sm:col-span-2' : 'sm:col-span-3'} truncate flex items-center`}
+                          >
+                            {expense.name}
+                            {expense.isRecurring && (
+                              <Badge variant="outline" className="ml-2 text-xs">
+                                <UpdateIcon className="h-3 w-3 mr-1" />
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="sm:col-span-2">
+                            {expense.category ? (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                                {expense.category}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">Non catégorisé</span>
+                            )}
+                          </div>
+                          <div className="sm:col-span-2">
+                            {new Date(expense.date).toLocaleDateString()}
+                          </div>
+                          <div
+                            className={`sm:col-span-2 text-right font-medium ${expense.amount < 0 ? 'text-red-500' : 'text-green-500'}`}
+                          >
+                            {expense.amount.toFixed(2)} €
+                          </div>
+                          <div
+                            className={`${isSelectionMode ? 'sm:col-span-3' : 'sm:col-span-3'} flex justify-end gap-2`}
+                          >
+                            {!isSelectionMode ? (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEdit(expense)}
+                                >
+                                  Modifier
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-red-500 hover:text-red-700 hover:bg-red-100"
+                                  onClick={() => handleDelete(expense.id)}
+                                >
+                                  Supprimer
+                                </Button>
+                              </>
+                            ) : (
+                              <Button
+                                variant={
+                                  selectedExpenses.includes(expense.id) ? 'default' : 'outline'
+                                }
+                                size="sm"
+                                onClick={() => handleSelectExpense(expense.id)}
+                              >
+                                {selectedExpenses.includes(expense.id) ? (
+                                  <>
+                                    <CheckIcon className="mr-1 h-4 w-4" /> Sélectionné
+                                  </>
+                                ) : (
+                                  'Sélectionner'
+                                )}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Élément observé pour le scroll infini */}
+                    {hasMore && (
+                      <div ref={observerTarget} className="p-4 flex justify-center items-center">
+                        {isLoadingMore ? (
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
                         ) : (
-                          <span className="text-muted-foreground">Non catégorisé</span>
+                          <div className="text-xs text-muted-foreground">
+                            Faites défiler pour voir plus
+                          </div>
                         )}
                       </div>
-                      <div>{new Date(expense.date).toLocaleDateString()}</div>
-                      <div
-                        className={`text-right font-medium ${expense.amount < 0 ? 'text-red-500' : 'text-green-500'}`}
-                      >
-                        {expense.amount.toFixed(2)} €
-                      </div>
-                      <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="sm" onClick={() => handleEdit(expense)}>
-                          Modifier
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-red-500 hover:text-red-700 hover:bg-red-100"
-                          onClick={() => handleDelete(expense.id)}
-                        >
-                          Supprimer
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                    )}
+                  </div>
                 </>
               ) : (
                 <div className="p-8 text-center text-muted-foreground">
@@ -909,34 +1239,32 @@ export function ExpensesList() {
               )}
             </div>
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex justify-between items-center mt-4">
-                <div className="text-sm text-muted-foreground">
-                  Affichage de {(currentPage - 1) * itemsPerPage + 1} à{' '}
-                  {Math.min(currentPage * itemsPerPage, filteredAndSortedExpenses.length)} sur{' '}
+            {/* Compteur de résultats et bouton de sélection multiple pour mobile */}
+            <div className="flex justify-between items-center">
+              {filteredAndSortedExpenses.length > 0 && (
+                <div className="text-xs sm:text-sm text-muted-foreground">
+                  Affichage de {Math.min(displayLimit, filteredAndSortedExpenses.length)} sur{' '}
                   {filteredAndSortedExpenses.length} transactions
                 </div>
-                <div className="flex gap-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                    disabled={currentPage === 1}
-                  >
-                    Précédent
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                    disabled={currentPage === totalPages}
-                  >
-                    Suivant
-                  </Button>
+              )}
+
+              {!isSelectionMode ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsSelectionMode(true)}
+                  className="sm:hidden"
+                >
+                  Sélection multiple
+                </Button>
+              ) : (
+                <div className="sm:hidden">
+                  {selectedExpenses.length > 0 && (
+                    <span className="text-xs mr-2">{selectedExpenses.length} sélectionné(s)</span>
+                  )}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </>
         )}
       </CardContent>

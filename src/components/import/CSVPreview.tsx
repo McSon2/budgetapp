@@ -20,6 +20,9 @@ interface Transaction {
   notes: string;
   expense: string;
   income: string;
+  isRecurring: string;
+  frequency: string;
+  endDate: string;
 }
 
 interface CSVPreviewProps {
@@ -62,12 +65,15 @@ export function CSVPreview({ data, onImport, onBack, isLoading }: CSVPreviewProp
               <TableHead>Description</TableHead>
               <TableHead className="text-right">Dépense</TableHead>
               <TableHead className="text-right">Rentrée</TableHead>
+              <TableHead>Récurrent</TableHead>
+              <TableHead>Fréquence</TableHead>
+              <TableHead>Date de fin</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {data.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-4">
+                <TableCell colSpan={8} className="text-center py-4">
                   Aucune transaction à afficher
                 </TableCell>
               </TableRow>
@@ -83,6 +89,9 @@ export function CSVPreview({ data, onImport, onBack, isLoading }: CSVPreviewProp
                   <TableCell className="text-right text-green-600">
                     {transaction.income ? formatAmount(transaction.income) : ''}
                   </TableCell>
+                  <TableCell>{transaction.isRecurring || 'Non'}</TableCell>
+                  <TableCell>{transaction.frequency || '-'}</TableCell>
+                  <TableCell>{transaction.endDate || '-'}</TableCell>
                 </TableRow>
               ))
             )}

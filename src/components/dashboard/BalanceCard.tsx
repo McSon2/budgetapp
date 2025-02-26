@@ -31,23 +31,25 @@ export function BalanceCard({
     currentBalance !== 0 ? Math.round((changeAmount / Math.abs(currentBalance)) * 100) : 0;
 
   return (
-    <Card className="h-full">
-      <CardHeader className="pb-3">
+    <Card className="h-full shadow-sm border-muted/60">
+      <CardHeader className="pb-2 sm:pb-3">
         <div className="flex justify-between items-start">
           <div>
-            <CardTitle>Solde</CardTitle>
-            <CardDescription>Situation financière actuelle et prévisionnelle</CardDescription>
+            <CardTitle className="text-lg sm:text-xl">Solde</CardTitle>
+            <CardDescription className="text-xs sm:text-sm">
+              Situation financière actuelle et prévisionnelle
+            </CardDescription>
           </div>
-          <DashboardIcon className="h-5 w-5 text-muted-foreground" />
+          <DashboardIcon className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
         </div>
       </CardHeader>
       <CardContent>
-        <div className="space-y-6">
-          <div className="space-y-2">
+        <div className="space-y-4 sm:space-y-6">
+          <div className="space-y-1 sm:space-y-2">
             <div className="flex justify-between items-baseline">
-              <p className="text-sm font-medium text-muted-foreground">Solde actuel</p>
+              <p className="text-xs sm:text-sm font-medium text-muted-foreground">Solde actuel</p>
               <p
-                className={`text-2xl font-bold ${currentBalance < 0 ? 'text-destructive' : 'text-primary'}`}
+                className={`text-xl sm:text-2xl font-bold ${currentBalance < 0 ? 'text-destructive' : 'text-primary'}`}
               >
                 {currentBalance.toLocaleString('fr-FR')} {currency}
               </p>
@@ -56,22 +58,24 @@ export function BalanceCard({
 
           <Separator />
 
-          <div className="space-y-2">
+          <div className="space-y-1 sm:space-y-2">
             <div className="flex justify-between items-baseline">
-              <p className="text-sm font-medium text-muted-foreground">Solde fin de mois</p>
+              <p className="text-xs sm:text-sm font-medium text-muted-foreground">
+                Solde fin de mois
+              </p>
               <div className="flex flex-col items-end">
                 <p
-                  className={`text-2xl font-bold ${endOfMonthBalance < 0 ? 'text-destructive' : 'text-primary'}`}
+                  className={`text-xl sm:text-2xl font-bold ${endOfMonthBalance < 0 ? 'text-destructive' : 'text-primary'}`}
                 >
                   {endOfMonthBalance.toLocaleString('fr-FR')} {currency}
                 </p>
                 <div
-                  className={`flex items-center text-xs ${isPositiveChange ? 'text-green-500' : 'text-red-500'}`}
+                  className={`flex items-center text-[10px] sm:text-xs ${isPositiveChange ? 'text-green-500' : 'text-red-500'}`}
                 >
                   {isPositiveChange ? (
-                    <ArrowUpIcon className="h-3 w-3 mr-1" />
+                    <ArrowUpIcon className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-1" />
                   ) : (
-                    <ArrowDownIcon className="h-3 w-3 mr-1" />
+                    <ArrowDownIcon className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-1" />
                   )}
                   <span>
                     {changeAmount.toLocaleString('fr-FR')} {currency} ({changePercentage}%)

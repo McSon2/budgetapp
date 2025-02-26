@@ -150,27 +150,34 @@ export function AddExpensePopover() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button size="lg" className="w-full">
+        <Button size="lg" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
           <PlusIcon className="h-4 w-4 mr-2" />
           Ajouter une transaction
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 sm:w-96" align="center">
-        <div className="space-y-4">
-          <div className="space-y-2">
+      <PopoverContent
+        className="w-[calc(100vw-2rem)] sm:w-96 max-w-md max-h-[70vh] overflow-y-auto border-2 shadow-lg backdrop-blur-sm bg-background/95 rounded-xl scrollbar-hide"
+        align="center"
+        side="top"
+        sideOffset={5}
+        avoidCollisions={true}
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      >
+        <div className="space-y-3">
+          <div className="space-y-1">
             <h4 className="font-medium leading-none">Nouvelle transaction</h4>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Ajoutez une nouvelle dépense ou un revenu à votre budget
             </p>
           </div>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
               <FormField
                 control={form.control}
                 name="type"
                 render={({ field }) => (
                   <FormItem className="space-y-1">
-                    <FormLabel>Type de transaction</FormLabel>
+                    <FormLabel className="text-sm">Type de transaction</FormLabel>
                     <div className="flex gap-2">
                       <Button
                         type="button"
@@ -198,7 +205,7 @@ export function AddExpensePopover() {
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Description</FormLabel>
+                    <FormLabel className="text-sm">Description</FormLabel>
                     <FormControl>
                       <Input placeholder="Description de la transaction" {...field} />
                     </FormControl>
@@ -211,7 +218,7 @@ export function AddExpensePopover() {
                 name="amount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Montant</FormLabel>
+                    <FormLabel className="text-sm">Montant</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -234,7 +241,7 @@ export function AddExpensePopover() {
                 name="date"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>Date</FormLabel>
+                    <FormLabel className="text-sm">Date</FormLabel>
                     <Popover>
                       <PopoverTrigger asChild>
                         <FormControl>
@@ -253,7 +260,12 @@ export function AddExpensePopover() {
                           </Button>
                         </FormControl>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
+                      <PopoverContent
+                        className="w-auto p-0 border-2 shadow-lg backdrop-blur-sm bg-background/95 rounded-xl"
+                        align="start"
+                        side="bottom"
+                        avoidCollisions={true}
+                      >
                         <Calendar
                           mode="single"
                           selected={field.value}
@@ -271,7 +283,7 @@ export function AddExpensePopover() {
                 name="category"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Catégorie</FormLabel>
+                    <FormLabel className="text-sm">Catégorie</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
@@ -298,7 +310,7 @@ export function AddExpensePopover() {
                         )}
                       </SelectContent>
                     </Select>
-                    <FormDescription>
+                    <FormDescription className="text-xs">
                       {categories.length === 0 ? (
                         <span className="text-yellow-500">
                           Aucune catégorie disponible. Utilisez le bouton &quot;Gérer les
@@ -316,10 +328,10 @@ export function AddExpensePopover() {
                 control={form.control}
                 name="isRecurring"
                 render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-2">
                     <div className="space-y-0.5">
-                      <FormLabel>Transaction récurrente</FormLabel>
-                      <FormDescription>
+                      <FormLabel className="text-sm">Transaction récurrente</FormLabel>
+                      <FormDescription className="text-xs">
                         Activez cette option si cette transaction se répète régulièrement
                       </FormDescription>
                     </div>
@@ -378,7 +390,12 @@ export function AddExpensePopover() {
                               </Button>
                             </FormControl>
                           </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
+                          <PopoverContent
+                            className="w-auto p-0 border-2 shadow-lg backdrop-blur-sm bg-background/95 rounded-xl"
+                            align="start"
+                            side="bottom"
+                            avoidCollisions={true}
+                          >
                             <Calendar
                               mode="single"
                               selected={field.value}

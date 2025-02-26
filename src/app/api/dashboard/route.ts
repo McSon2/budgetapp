@@ -10,25 +10,22 @@ export async function GET(request: NextRequest) {
     // Récupérer l'utilisateur courant
     const user = await getCurrentUser();
     if (!user || !user.id) {
-      return NextResponse.json({ error: 'Utilisateur non authentifié' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Récupérer la date depuis les paramètres de requête
+    // Récupérer la date sélectionnée depuis les paramètres de requête
     const searchParams = request.nextUrl.searchParams;
     const dateParam = searchParams.get('date');
 
-    // Convertir la date si elle est fournie
-    const selectedDate = dateParam ? new Date(dateParam) : undefined;
+    // Utiliser la date fournie ou la date actuelle
+    const selectedDate = dateParam ? new Date(dateParam) : new Date();
 
-    // Récupérer les données du dashboard
+    // Récupérer les données du tableau de bord
     const dashboardData = await getDashboardData(user.id, selectedDate);
 
     return NextResponse.json(dashboardData);
   } catch (error) {
     console.error('Error fetching dashboard data:', error);
-    return NextResponse.json(
-      { error: 'Erreur lors de la récupération des données du dashboard' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to fetch dashboard data' }, { status: 500 });
   }
 }

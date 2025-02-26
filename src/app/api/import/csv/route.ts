@@ -106,15 +106,70 @@ export async function POST(request: NextRequest) {
           }
         }
 
+        // Traiter les informations de récurrence
+        let isRecurring = false;
+        let recurrenceId = null;
+
+        // Vérifier si la transaction est récurrente
+        if (transaction.isRecurring && transaction.isRecurring.toLowerCase() === 'oui') {
+          isRecurring = true;
+
+          // Vérifier si une fréquence est spécifiée
+          if (transaction.frequency) {
+            // Normaliser la fréquence
+            let frequency = transaction.frequency.toLowerCase().trim();
+
+            // Mapper les fréquences en français vers l'anglais si nécessaire
+            const frequencyMap: Record<string, string> = {
+              quotidien: 'daily',
+              hebdomadaire: 'weekly',
+              mensuel: 'monthly',
+              annuel: 'yearly',
+            };
+
+            frequency = frequencyMap[frequency] || frequency;
+
+            // Vérifier que la fréquence est valide
+            if (!['daily', 'weekly', 'monthly', 'yearly'].includes(frequency)) {
+              frequency = 'monthly'; // Valeur par défaut
+            }
+
+            // Traiter la date de fin si elle existe
+            let endDate = null;
+            if (transaction.endDate) {
+              const [endDay, endMonth, endYear] = transaction.endDate.split('/').map(Number);
+              const parsedEndDate = new Date(endYear, endMonth - 1, endDay);
+
+              // Vérifier si la date de fin est valide
+              if (!isNaN(parsedEndDate.getTime())) {
+                endDate = parsedEndDate;
+              }
+            }
+
+            // Créer la récurrence
+            const recurrence = await prisma.recurrence.create({
+              data: {
+                frequency,
+                interval: 1,
+                startDate: date,
+                endDate,
+              },
+            });
+
+            recurrenceId = recurrence.id;
+          }
+        }
+
         // Créer la transaction
         const newTransaction = await prisma.expense.create({
           data: {
             date,
             amount,
             description: transaction.description || 'Transaction importée',
-            isRecurring: false,
+            isRecurring,
             userId: user.id,
             categoryId,
+            recurrenceId,
           },
         });
 

@@ -24,7 +24,7 @@ import {
   PlusIcon,
   TrashIcon,
 } from '@radix-ui/react-icons';
-import { endOfMonth, format, startOfMonth } from 'date-fns';
+import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -48,6 +48,29 @@ interface Transaction {
   date: string;
   category: string;
 }
+
+// Fonction utilitaire pour normaliser une date au début du mois en UTC
+const normalizeToStartOfMonth = (date: Date | string): Date => {
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  const normalized = new Date(dateObj);
+  normalized.setUTCDate(1);
+  normalized.setUTCHours(0, 0, 0, 0);
+  return normalized;
+};
+
+// Fonction utilitaire pour normaliser une date à la fin du mois en UTC
+const normalizeToEndOfMonth = (date: Date | string): Date => {
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  const normalized = new Date(dateObj);
+  const lastDay = new Date(
+    normalized.getUTCFullYear(),
+    normalized.getUTCMonth() + 1,
+    0
+  ).getUTCDate();
+  normalized.setUTCDate(lastDay);
+  normalized.setUTCHours(23, 59, 59, 999);
+  return normalized;
+};
 
 export function CategoryExpensesCard({
   categories: propCategories,
@@ -208,12 +231,14 @@ export function CategoryExpensesCard({
     setLoadingCategories(prev => ({ ...prev, [categoryName]: true }));
 
     try {
-      // S'assurer que selectedMonth est un objet Date valide
-      const dateToUse = selectedMonth instanceof Date ? selectedMonth : new Date(selectedMonth);
+      // S'assurer que selectedMonth est un objet Date valide et normalisé
+      const dateToUse = normalizeToStartOfMonth(
+        selectedMonth instanceof Date ? selectedMonth : new Date(selectedMonth)
+      );
 
-      // Obtenir le début et la fin du mois sélectionné
-      const start = startOfMonth(dateToUse).toISOString();
-      const end = endOfMonth(dateToUse).toISOString();
+      // Obtenir le début et la fin du mois sélectionné en UTC
+      const start = normalizeToStartOfMonth(dateToUse).toISOString();
+      const end = normalizeToEndOfMonth(dateToUse).toISOString();
 
       // Ajouter les paramètres de date à la requête
       const response = await fetch(`/api/expenses?startDate=${start}&endDate=${end}`);

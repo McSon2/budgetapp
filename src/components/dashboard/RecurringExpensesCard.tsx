@@ -176,18 +176,20 @@ export function RecurringExpensesCard({
   });
 
   return (
-    <Card className="h-full">
-      <CardHeader>
+    <Card className="h-full shadow-sm border-muted/60">
+      <CardHeader className="pb-2 sm:pb-3">
         <div className="flex justify-between items-start">
           <div>
-            <CardTitle>Dépenses récurrentes</CardTitle>
-            <CardDescription>Vos paiements réguliers à venir</CardDescription>
+            <CardTitle className="text-lg sm:text-xl">Dépenses récurrentes</CardTitle>
+            <CardDescription className="text-xs sm:text-sm">
+              Vos paiements réguliers à venir
+            </CardDescription>
           </div>
-          <UpdateIcon className="h-4 w-4 text-muted-foreground" />
+          <UpdateIcon className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
         </div>
         {!isLoading && expenses.length > 0 && (
-          <div className="mt-2 p-3 bg-muted rounded-md">
-            <p className="text-sm font-medium flex justify-between items-center">
+          <div className="mt-2 p-2 sm:p-3 bg-muted/70 rounded-md">
+            <p className="text-xs sm:text-sm font-medium flex justify-between items-center">
               <span>Total mensuel estimé:</span>
               <span className="text-destructive font-bold">
                 {totalRecurringAmount.toLocaleString('fr-FR')} {currency}
@@ -199,23 +201,23 @@ export function RecurringExpensesCard({
       <CardContent>
         {isLoading ? (
           <div className="space-y-3">
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-10 sm:h-12 w-full" />
+            <Skeleton className="h-10 sm:h-12 w-full" />
+            <Skeleton className="h-10 sm:h-12 w-full" />
           </div>
         ) : expenses.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-6 text-center">
-            <div className="rounded-full bg-muted p-3 mb-3">
-              <CalendarIcon className="h-6 w-6 text-muted-foreground" />
+          <div className="flex flex-col items-center justify-center py-4 sm:py-6 text-center">
+            <div className="rounded-full bg-muted p-2 sm:p-3 mb-2 sm:mb-3">
+              <CalendarIcon className="h-5 w-5 sm:h-6 sm:w-6 text-muted-foreground" />
             </div>
-            <p className="text-sm text-muted-foreground">Aucune dépense récurrente.</p>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs sm:text-sm text-muted-foreground">Aucune dépense récurrente.</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
               Ajoutez des dépenses récurrentes pour suivre vos paiements réguliers.
             </p>
           </div>
         ) : (
           <div
-            className="space-y-3 max-h-[350px] overflow-y-auto pr-1 scrollbar-hide"
+            className="space-y-2 sm:space-y-3 max-h-[300px] sm:max-h-[350px] overflow-y-auto pr-1 scrollbar-hide"
             style={{
               scrollbarWidth: 'none',
               msOverflowStyle: 'none',
@@ -224,22 +226,27 @@ export function RecurringExpensesCard({
             {sortedExpenses.map(expense => (
               <div
                 key={expense.id}
-                className="flex flex-col p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                className="flex flex-col p-2 sm:p-3 border rounded-lg hover:bg-muted/50 transition-colors"
               >
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{expense.description}</span>
-                    <Badge variant="outline" className="text-xs">
-                      <UpdateIcon className="h-3 w-3 mr-1" />
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 mb-1 sm:mb-2">
+                  <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                    <span className="font-medium text-sm sm:text-base line-clamp-1">
+                      {expense.description}
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] sm:text-xs h-5 sm:h-6 px-1 sm:px-2"
+                    >
+                      <UpdateIcon className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-0.5 sm:mr-1" />
                       {translateFrequency(expense.frequency)}
                     </Badge>
                   </div>
-                  <span className="font-medium text-destructive">
-                    -{expense.amount.toLocaleString('fr-FR')} {currency}
+                  <span className="font-medium text-destructive text-sm sm:text-base whitespace-nowrap">
+                    -{Math.abs(expense.amount).toLocaleString('fr-FR')} {currency}
                   </span>
                 </div>
-                <div className="flex items-center text-xs text-muted-foreground">
-                  <CalendarIcon className="h-3 w-3 mr-1" />
+                <div className="flex items-center text-[10px] sm:text-xs text-muted-foreground">
+                  <CalendarIcon className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-0.5 sm:mr-1 flex-shrink-0" />
                   <span>Prochaine échéance: {formatDate(expense.nextDate, expense.frequency)}</span>
                 </div>
               </div>

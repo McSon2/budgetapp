@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { endOfMonth, format, isAfter, isBefore, startOfMonth } from 'date-fns';
+import { isAfter, isBefore } from 'date-fns';
 
 export interface DashboardData {
   currentBalance: number;
@@ -22,17 +22,48 @@ export interface DashboardData {
   selectedMonth: Date;
 }
 
+// Fonction utilitaire pour normaliser une date au début du mois en UTC
+const normalizeToStartOfMonth = (date: Date | string): Date => {
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  const normalized = new Date(dateObj);
+  normalized.setUTCDate(1);
+  normalized.setUTCHours(0, 0, 0, 0);
+  return normalized;
+};
+
+// Fonction utilitaire pour normaliser une date à la fin du mois en UTC
+const normalizeToEndOfMonth = (date: Date | string): Date => {
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  const normalized = new Date(dateObj);
+  const lastDay = new Date(
+    normalized.getUTCFullYear(),
+    normalized.getUTCMonth() + 1,
+    0
+  ).getUTCDate();
+  normalized.setUTCDate(lastDay);
+  normalized.setUTCHours(23, 59, 59, 999);
+  return normalized;
+};
+
 export async function getDashboardData(
   userId: string,
-  selectedDate?: Date
+  selectedDate?: Date | string
 ): Promise<DashboardData> {
+  // Normaliser la date sélectionnée au début du mois en UTC
+  const normalizedDate = selectedDate
+    ? normalizeToStartOfMonth(selectedDate)
+    : normalizeToStartOfMonth(new Date());
+
+  // Calculer le début et la fin du mois sélectionné en UTC
+  const startDate = normalizeToStartOfMonth(normalizedDate);
+  const endDate = normalizeToEndOfMonth(normalizedDate);
+
+  // Obtenir la date actuelle en UTC
   const today = new Date();
-  const selectedMonth = selectedDate || today;
-  const startOfSelectedMonth = startOfMonth(selectedMonth);
-  const endOfSelectedMonth = endOfMonth(selectedMonth);
+  today.setUTCHours(0, 0, 0, 0);
 
   // Récupérer toutes les dépenses de l'utilisateur
-  const allExpenses = await prisma.expense.findMany({
+  const expenses = await prisma.expense.findMany({
     where: {
       userId,
     },
@@ -40,105 +71,78 @@ export async function getDashboardData(
       category: true,
       recurrence: true,
     },
-    orderBy: {
-      date: 'desc',
-    },
   });
-
-  // Calculer les entrées et sorties du mois sélectionné
-  const selectedMonthExpenses = allExpenses.filter(expense => {
-    const expenseDate = new Date(expense.date);
-    return (
-      !isBefore(expenseDate, startOfSelectedMonth) && !isAfter(expenseDate, endOfSelectedMonth)
-    );
-  });
-
-  const income = selectedMonthExpenses
-    .filter(expense => expense.amount > 0)
-    .reduce((sum, expense) => sum + expense.amount, 0);
-
-  const expenses = selectedMonthExpenses
-    .filter(expense => expense.amount < 0)
-    .reduce((sum, expense) => sum + Math.abs(expense.amount), 0);
 
   // Calculer le solde actuel (toutes les dépenses jusqu'à aujourd'hui)
-  const currentBalance = allExpenses
-    .filter(expense => {
-      const expenseDate = new Date(expense.date);
-      return (
-        isBefore(expenseDate, today) ||
-        format(expenseDate, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')
-      );
-    })
-    .reduce((sum, expense) => sum + expense.amount, 0);
+  const currentBalance = expenses
+    .filter(expense => isBefore(new Date(expense.date), today))
+    .reduce((acc, expense) => acc + expense.amount, 0);
 
-  // Calculer le solde de fin de mois (toutes les dépenses jusqu'à la fin du mois sélectionné)
-  const endOfMonthBalance = allExpenses
-    .filter(expense => {
-      const expenseDate = new Date(expense.date);
-      return (
-        isBefore(expenseDate, endOfSelectedMonth) ||
-        format(expenseDate, 'yyyy-MM-dd') === format(endOfSelectedMonth, 'yyyy-MM-dd')
-      );
-    })
-    .reduce((sum, expense) => sum + expense.amount, 0);
+  // Calculer les dépenses du mois sélectionné
+  const monthExpenses = expenses.filter(
+    expense =>
+      isAfter(new Date(expense.date), startDate) && isBefore(new Date(expense.date), endDate)
+  );
+
+  // Calculer le total des dépenses et revenus du mois
+  const monthlyExpensesTotal = monthExpenses
+    .filter(expense => expense.amount < 0)
+    .reduce((acc, expense) => acc + expense.amount, 0);
+
+  const monthlyIncomeTotal = monthExpenses
+    .filter(expense => expense.amount > 0)
+    .reduce((acc, expense) => acc + expense.amount, 0);
+
+  // Calculer le solde de fin de mois (solde actuel + dépenses futures du mois)
+  const futureExpenses = monthExpenses
+    .filter(expense => isAfter(new Date(expense.date), today))
+    .reduce((acc, expense) => acc + expense.amount, 0);
+
+  const endOfMonthBalance = currentBalance + futureExpenses;
 
   // Récupérer les dépenses récurrentes
-  const recurringExpenses = allExpenses
+  const recurringExpenses = expenses
     .filter(expense => expense.isRecurring && expense.recurrence)
     .map(expense => ({
       id: expense.id,
       description: expense.description,
-      amount: Math.abs(expense.amount),
+      amount: expense.amount,
       frequency: expense.recurrence?.frequency || 'monthly',
       nextDate: expense.recurrence?.startDate || new Date(),
     }));
 
-  // Calculer les dépenses par catégorie pour le mois sélectionné
-  const categoryMap = new Map<
-    string,
-    { id: string; name: string; amount: number; color: string }
-  >();
+  // Calculer les dépenses par catégorie
+  const categoryExpensesMap = new Map<string, { name: string; amount: number; color: string }>();
 
-  selectedMonthExpenses
-    .filter(expense => expense.amount < 0 && expense.category)
-    .forEach(expense => {
-      if (!expense.category) return;
-
-      const categoryId = expense.category.id;
-      const existingCategory = categoryMap.get(categoryId);
+  monthExpenses.forEach(expense => {
+    if (expense.category) {
+      const { id, name, color } = expense.category;
+      const existingCategory = categoryExpensesMap.get(id);
 
       if (existingCategory) {
-        existingCategory.amount += Math.abs(expense.amount);
+        existingCategory.amount += expense.amount;
       } else {
-        categoryMap.set(categoryId, {
-          id: categoryId,
-          name: expense.category.name,
-          amount: Math.abs(expense.amount),
-          color: expense.category.color || '#000000',
+        categoryExpensesMap.set(id, {
+          name,
+          amount: expense.amount,
+          color: color || '#94a3b8', // Couleur par défaut si non définie
         });
       }
-    });
+    }
+  });
 
-  const categoryExpenses = Array.from(categoryMap.values());
-
-  // Retourner des données par défaut si aucune donnée n'est disponible
-  if (categoryExpenses.length === 0) {
-    categoryExpenses.push({
-      id: 'default',
-      name: 'Aucune catégorie',
-      amount: 0,
-      color: '#cccccc',
-    });
-  }
+  const categoryExpenses = Array.from(categoryExpensesMap.entries()).map(([id, category]) => ({
+    id,
+    ...category,
+  }));
 
   return {
     currentBalance,
     endOfMonthBalance,
-    income,
-    expenses,
-    recurringExpenses,
+    income: monthlyIncomeTotal,
+    expenses: monthlyExpensesTotal,
+    recurringExpenses: recurringExpenses,
     categoryExpenses,
-    selectedMonth: startOfSelectedMonth,
+    selectedMonth: normalizedDate,
   };
 }

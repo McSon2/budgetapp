@@ -22,6 +22,9 @@ interface Transaction {
   notes: string;
   expense: string;
   income: string;
+  isRecurring: string;
+  frequency: string;
+  endDate: string;
 }
 
 export function CSVImporter({ userId }: CSVImporterProps) {
@@ -31,10 +34,97 @@ export function CSVImporter({ userId }: CSVImporterProps) {
   const router = useRouter();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      parseCSV(selectedFile);
+    setIsLoading(true);
+    const file = e.target.files?.[0];
+    if (!file) {
+      setIsLoading(false);
+      return;
     }
+
+    const reader = new FileReader();
+    reader.onload = event => {
+      const content = event.target?.result as string;
+      const lines = content.split('\n');
+
+      if (lines.length < 2) {
+        toast.error('Le fichier CSV est vide ou mal formaté');
+        setIsLoading(false);
+        return;
+      }
+
+      // Parse CSV headers
+      const headers = parseCSVLine(lines[0]);
+
+      // Check if the CSV has the required headers
+      const requiredHeaders = [
+        'Date',
+        'Heure',
+        'Catégorie',
+        'Sous-catégorie',
+        'Nom',
+        'Remarques',
+        'Dépense',
+        'Rentrée',
+      ];
+
+      // Check if at least the first 8 required headers are present
+      const hasRequiredHeaders = requiredHeaders.every(header => headers.includes(header));
+
+      if (!hasRequiredHeaders) {
+        toast.error('Le fichier CSV ne contient pas les en-têtes requis');
+        setIsLoading(false);
+        return;
+      }
+
+      // Parse CSV data
+      const data: Transaction[] = [];
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (line) {
+          const values = parseCSVLine(line);
+
+          // Map values to transaction object
+          const transaction: Transaction = {
+            date: values[headers.indexOf('Date')] || '',
+            time: values[headers.indexOf('Heure')] || '',
+            category: values[headers.indexOf('Catégorie')] || '',
+            subcategory: values[headers.indexOf('Sous-catégorie')] || '',
+            description: values[headers.indexOf('Nom')] || '',
+            notes: values[headers.indexOf('Remarques')] || '',
+            expense: values[headers.indexOf('Dépense')] || '',
+            income: values[headers.indexOf('Rentrée')] || '',
+            isRecurring: headers.includes('Récurrent')
+              ? values[headers.indexOf('Récurrent')] || ''
+              : '',
+            frequency: headers.includes('Fréquence')
+              ? values[headers.indexOf('Fréquence')] || ''
+              : '',
+            endDate: headers.includes('Date de fin')
+              ? values[headers.indexOf('Date de fin')] || ''
+              : '',
+          };
+
+          data.push(transaction);
+        }
+      }
+
+      if (data.length === 0) {
+        toast.error('Aucune transaction valide trouvée dans le fichier CSV');
+        setIsLoading(false);
+        return;
+      }
+
+      setCsvData(data);
+      setStep('preview');
+      setIsLoading(false);
+    };
+
+    reader.onerror = () => {
+      toast.error('Erreur lors de la lecture du fichier');
+      setIsLoading(false);
+    };
+
+    reader.readAsText(file);
   };
 
   // Fonction pour analyser une ligne CSV en tenant compte des guillemets
@@ -60,95 +150,6 @@ export function CSVImporter({ userId }: CSVImporterProps) {
     result.push(current);
 
     return result;
-  };
-
-  const parseCSV = async (file: File) => {
-    setIsLoading(true);
-
-    try {
-      const text = await file.text();
-      const lines = text.split('\n');
-
-      // Filtrer les lignes vides et les commentaires
-      const dataLines = lines.filter(line => line.trim() !== '' && !line.startsWith('#'));
-
-      if (dataLines.length === 0) {
-        throw new Error('Le fichier CSV ne contient pas de données valides');
-      }
-
-      // Extraire les en-têtes
-      const headers = parseCSVLine(dataLines[0]);
-
-      // Vérifier si les en-têtes correspondent au format attendu
-      const expectedHeaders = [
-        'Date',
-        'Heure',
-        'Catégorie',
-        'Sous-catégorie',
-        'Nom',
-        'Remarques',
-        'Dépense',
-        'Rentrée',
-      ];
-
-      // Vérification plus souple des en-têtes
-      const isValidFormat = expectedHeaders.length === headers.length;
-
-      if (!isValidFormat) {
-        console.error('En-têtes trouvés:', headers);
-        throw new Error(
-          `Le format du fichier CSV ne correspond pas au format attendu. Attendu: ${expectedHeaders.join(', ')}, Trouvé: ${headers.join(', ')}`
-        );
-      }
-
-      // Extraire les données
-      const parsedData: Transaction[] = [];
-
-      for (let i = 1; i < dataLines.length; i++) {
-        const line = dataLines[i].trim();
-        if (!line) continue;
-
-        const values = parseCSVLine(line);
-
-        if (values.length === headers.length) {
-          const transaction: Transaction = {
-            date: values[0].trim(),
-            time: values[1].trim(),
-            category: values[2].trim(),
-            subcategory: values[3].trim(),
-            description: values[4].trim(),
-            notes: values[5].trim(),
-            expense: values[6].trim(),
-            income: values[7].trim(),
-          };
-
-          // Vérifier que la transaction a au moins une date et un montant
-          if (transaction.date && (transaction.expense || transaction.income)) {
-            parsedData.push(transaction);
-          }
-        } else {
-          console.warn(`Ligne ignorée (nombre de colonnes incorrect): ${line}`);
-        }
-      }
-
-      console.log(`Transactions analysées: ${parsedData.length}`);
-
-      if (parsedData.length === 0) {
-        throw new Error('Aucune transaction valide trouvée dans le fichier CSV');
-      }
-
-      setCsvData(parsedData);
-      setStep('preview');
-    } catch (error) {
-      console.error("Erreur lors de l'analyse du fichier CSV:", error);
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Une erreur est survenue lors de l'analyse du fichier CSV"
-      );
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   const handleImport = async () => {
