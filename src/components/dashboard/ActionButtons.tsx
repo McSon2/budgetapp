@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Download, Upload } from 'lucide-react';
+import { Download, PieChart, Upload } from 'lucide-react';
 import Link from 'next/link';
 import { AddExpensePopover } from './AddExpensePopover';
 
@@ -13,6 +13,18 @@ export function ActionButtons() {
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
           <div className="flex-1">
             <AddExpensePopover />
+          </div>
+          <div className="flex-1">
+            <Link href="/dashboard/budget" className="w-full">
+              <Button
+                variant="outline"
+                className="w-full border-muted-foreground/20 bg-gradient-to-r from-primary/10 to-primary/5 hover:from-primary/20 hover:to-primary/10"
+                size="lg"
+              >
+                <PieChart className="h-4 w-4 mr-2" />
+                Budget
+              </Button>
+            </Link>
           </div>
           <div className="flex-1">
             <Link href="/dashboard/import" className="w-full">
