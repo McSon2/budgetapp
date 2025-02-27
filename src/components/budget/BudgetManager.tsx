@@ -35,23 +35,35 @@ interface SafetyCushion {
   enabled: boolean;
 }
 
+// Clés pour le localStorage
+const STORAGE_KEYS = {
+  CATEGORIES: 'budget-categories',
+  SAFETY_CUSHION: 'safety-cushion',
+};
+
+// Catégories par défaut
+const DEFAULT_CATEGORIES: BudgetCategory[] = [
+  { id: '1', name: 'Courses', percentage: 50, color: '#FF6384', amount: 0 },
+  { id: '2', name: 'Transport', percentage: 30, color: '#36A2EB', amount: 0 },
+  { id: '3', name: 'Plaisir', percentage: 10, color: '#FFCE56', amount: 0 },
+  { id: '4', name: 'Épargne', percentage: 10, color: '#4BC0C0', amount: 0 },
+];
+
+// Matelas de sécurité par défaut
+const DEFAULT_SAFETY_CUSHION: SafetyCushion = {
+  amount: 200,
+  enabled: true,
+};
+
 export function BudgetManager() {
   const dashboardData = useDashboard();
   const endOfMonthBalance = dashboardData.endOfMonthBalance;
 
-  // État pour les catégories de budget (règle 50/30/10/10 par défaut)
-  const [categories, setCategories] = useState<BudgetCategory[]>([
-    { id: '1', name: 'Courses', percentage: 50, color: '#FF6384', amount: 0 },
-    { id: '2', name: 'Transport', percentage: 30, color: '#36A2EB', amount: 0 },
-    { id: '3', name: 'Plaisir', percentage: 10, color: '#FFCE56', amount: 0 },
-    { id: '4', name: 'Épargne', percentage: 10, color: '#4BC0C0', amount: 0 },
-  ]);
+  // État pour les catégories de budget (chargées depuis localStorage ou valeurs par défaut)
+  const [categories, setCategories] = useState<BudgetCategory[]>([]);
 
-  // État pour le matelas de sécurité
-  const [safetyCushion, setSafetyCushion] = useState<SafetyCushion>({
-    amount: 200,
-    enabled: true,
-  });
+  // État pour le matelas de sécurité (chargé depuis localStorage ou valeur par défaut)
+  const [safetyCushion, setSafetyCushion] = useState<SafetyCushion>(DEFAULT_SAFETY_CUSHION);
 
   // État pour le mode d'édition
   const [editMode, setEditMode] = useState(false);
@@ -61,6 +73,35 @@ export function BudgetManager() {
 
   // État pour suivre si les pourcentages sont verrouillés
   const [percentagesLocked, setPercentagesLocked] = useState(false);
+
+  // Charger les données depuis localStorage au montage du composant
+  useEffect(() => {
+    // Fonction pour charger les données depuis localStorage
+    const loadFromLocalStorage = () => {
+      try {
+        // Charger les catégories
+        const savedCategories = localStorage.getItem(STORAGE_KEYS.CATEGORIES);
+        if (savedCategories) {
+          setCategories(JSON.parse(savedCategories));
+        } else {
+          setCategories(DEFAULT_CATEGORIES);
+        }
+
+        // Charger le matelas de sécurité
+        const savedSafetyCushion = localStorage.getItem(STORAGE_KEYS.SAFETY_CUSHION);
+        if (savedSafetyCushion) {
+          setSafetyCushion(JSON.parse(savedSafetyCushion));
+        }
+      } catch (error) {
+        console.error('Erreur lors du chargement des données:', error);
+        // En cas d'erreur, utiliser les valeurs par défaut
+        setCategories(DEFAULT_CATEGORIES);
+        setSafetyCushion(DEFAULT_SAFETY_CUSHION);
+      }
+    };
+
+    loadFromLocalStorage();
+  }, []);
 
   // Extraire les pourcentages des catégories pour la dépendance du useEffect
   const categoryPercentages = categories.map(c => c.percentage).join(',');
@@ -82,6 +123,27 @@ export function BudgetManager() {
       }))
     );
   }, [endOfMonthBalance, safetyCushion, categoryPercentages]);
+
+  // Sauvegarder les catégories dans localStorage quand elles changent
+  useEffect(() => {
+    // Ne sauvegarder que si les catégories sont initialisées
+    if (categories.length > 0) {
+      // Sauvegarder sans les montants calculés (qui sont recalculés à chaque fois)
+      const categoriesToSave = categories.map(({ id, name, percentage, color }) => ({
+        id,
+        name,
+        percentage,
+        color,
+        amount: 0, // On ne sauvegarde pas les montants calculés
+      }));
+      localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(categoriesToSave));
+    }
+  }, [categories]);
+
+  // Sauvegarder le matelas de sécurité dans localStorage quand il change
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.SAFETY_CUSHION, JSON.stringify(safetyCushion));
+  }, [safetyCushion]);
 
   // Fonction pour mettre à jour le pourcentage d'une catégorie
   const updateCategoryPercentage = (id: string, newPercentage: number) => {
@@ -148,12 +210,7 @@ export function BudgetManager() {
 
   // Fonction pour réinitialiser aux valeurs par défaut (50/30/10/10)
   const resetToDefault = () => {
-    setCategories([
-      { id: '1', name: 'Courses', percentage: 50, color: '#FF6384', amount: 0 },
-      { id: '2', name: 'Transport', percentage: 30, color: '#36A2EB', amount: 0 },
-      { id: '3', name: 'Plaisir', percentage: 10, color: '#FFCE56', amount: 0 },
-      { id: '4', name: 'Épargne', percentage: 10, color: '#4BC0C0', amount: 0 },
-    ]);
+    setCategories(DEFAULT_CATEGORIES);
   };
 
   // Fonction pour ajouter une nouvelle catégorie
