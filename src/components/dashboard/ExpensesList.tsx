@@ -1,5 +1,6 @@
 'use client';
 
+import { useDashboard } from '@/components/providers/MonthProvider';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -576,6 +577,10 @@ export function ExpensesList() {
   // Récupérer le mois sélectionné depuis le store
   const { selectedMonth } = useDateStore();
 
+  // Récupérer le contexte du dashboard pour pouvoir le rafraîchir
+  const dashboardData = useDashboard();
+  const refreshDashboard = dashboardData.refreshData;
+
   // États pour le tri
   const [sortField, setSortField] = useState<'name' | 'category' | 'date' | 'amount'>('date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -791,6 +796,11 @@ export function ExpensesList() {
 
       setExpenses(expenses.filter(expense => expense.id !== id));
       toast.success('Dépense supprimée avec succès');
+
+      // Rafraîchir les données du dashboard
+      if (refreshDashboard) {
+        refreshDashboard();
+      }
     } catch (error) {
       console.error('Failed to delete expense:', error);
       toast.error('Impossible de supprimer la dépense');
@@ -833,6 +843,11 @@ export function ExpensesList() {
 
       // Rafraîchir la liste des dépenses pour s'assurer que tout est à jour
       fetchExpenses();
+
+      // Rafraîchir les données du dashboard
+      if (refreshDashboard) {
+        refreshDashboard();
+      }
     } catch (error) {
       console.error('Failed to update expense:', error);
       toast.error('Impossible de modifier la transaction');
@@ -998,6 +1013,11 @@ export function ExpensesList() {
       setSelectedExpenses([]);
       setIsSelectionMode(false);
       toast.success(`${realExpenseIds.length} transaction(s) supprimée(s) avec succès`);
+
+      // Rafraîchir les données du dashboard
+      if (refreshDashboard) {
+        refreshDashboard();
+      }
     } catch (error) {
       console.error('Failed to delete expenses:', error);
       toast.error('Impossible de supprimer les transactions');

@@ -2,10 +2,15 @@
 
 import { DashboardData } from '@/lib/services/dashboard-service';
 import { useDateStore } from '@/lib/store/date-store';
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+
+// Étendre l'interface DashboardData pour inclure la fonction de rafraîchissement
+interface DashboardContextData extends DashboardData {
+  refreshData: () => Promise<void>;
+}
 
 // Créer un contexte pour les données du dashboard
-const DashboardContext = createContext<DashboardData | null>(null);
+const DashboardContext = createContext<DashboardContextData | null>(null);
 
 // Hook personnalisé pour utiliser le contexte
 export function useDashboard() {
@@ -34,31 +39,42 @@ export function MonthProvider({ children, initialData }: MonthProviderProps) {
   const { selectedMonth } = useDateStore();
   const [dashboardData, setDashboardData] = useState<DashboardData>(initialData);
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        // S'assurer que selectedMonth est un objet Date valide et normalisé
-        const dateToUse = normalizeToStartOfMonth(
-          selectedMonth instanceof Date ? selectedMonth : new Date(selectedMonth)
-        );
+  // Fonction pour récupérer les données du dashboard
+  const fetchData = useCallback(async () => {
+    try {
+      // S'assurer que selectedMonth est un objet Date valide et normalisé
+      const dateToUse = normalizeToStartOfMonth(
+        selectedMonth instanceof Date ? selectedMonth : new Date(selectedMonth)
+      );
 
-        // Utiliser une méthode sécurisée pour obtenir la chaîne ISO
-        const dateParam = dateToUse.toISOString();
+      // Utiliser une méthode sécurisée pour obtenir la chaîne ISO
+      const dateParam = dateToUse.toISOString();
 
-        const response = await fetch(`/api/dashboard?date=${dateParam}`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch dashboard data');
-        }
-        const data = await response.json();
-        setDashboardData(data);
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
+      const response = await fetch(`/api/dashboard?date=${dateParam}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch dashboard data');
       }
+      const data = await response.json();
+      setDashboardData(data);
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
     }
-
-    fetchData();
   }, [selectedMonth]);
 
-  // Créer un contexte pour les données du dashboard
-  return <DashboardContext.Provider value={dashboardData}>{children}</DashboardContext.Provider>;
+  // Fonction pour rafraîchir les données du dashboard
+  const refreshData = useCallback(async () => {
+    await fetchData();
+  }, [fetchData]);
+
+  useEffect(() => {
+    fetchData();
+  }, [selectedMonth, fetchData]);
+
+  // Créer un contexte pour les données du dashboard avec la fonction de rafraîchissement
+  const contextValue: DashboardContextData = {
+    ...dashboardData,
+    refreshData,
+  };
+
+  return <DashboardContext.Provider value={contextValue}>{children}</DashboardContext.Provider>;
 }

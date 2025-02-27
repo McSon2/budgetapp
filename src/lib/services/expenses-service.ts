@@ -41,6 +41,23 @@ const normalizeDate = (date: Date | string): Date => {
       normalized.setUTCDate(1);
     }
   }
+
+  // Vérifier si c'est le dernier jour du mois
+  const lastDayOfMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  const isLastDayOfMonth = day === lastDayOfMonth;
+
+  // Si c'est le dernier jour du mois, s'assurer que la date normalisée est bien le dernier jour du mois
+  if (isLastDayOfMonth) {
+    // Vérifier que la date normalisée est bien le dernier jour du mois
+    if (normalized.getUTCDate() !== lastDayOfMonth) {
+      console.warn(
+        `Correction de date: Le dernier jour du mois a été converti incorrectement. Ajustement forcé au dernier jour.`
+      );
+      // Forcer au dernier jour du mois
+      normalized.setUTCDate(lastDayOfMonth);
+    }
+  }
+
   return normalized;
 };
 
@@ -80,6 +97,7 @@ export async function getExpenses(
     if (endDate) {
       // Pour la date de fin, nous voulons utiliser la fin de la journée
       const endDateObj = new Date(endDate);
+      // Utiliser 23:59:59.999 pour s'assurer d'inclure toutes les transactions du dernier jour
       endDateObj.setUTCHours(23, 59, 59, 999);
       whereCondition.date.lte = endDateObj;
     }
@@ -104,16 +122,16 @@ export async function getExpenses(
           const expenseHour = expenseDate.getUTCHours();
 
           // Vérifier si la transaction est réellement du mois demandé
-          // Si c'est le dernier jour du mois et après 22h, considérer que c'est une transaction du mois suivant
-          const isLastDayOfMonth =
-            expenseDay === new Date(expenseYear, expenseMonth + 1, 0).getUTCDate();
+          // Calculer correctement le dernier jour du mois
+          const lastDayOfMonth = new Date(Date.UTC(expenseYear, expenseMonth + 1, 0)).getUTCDate();
+          const isLastDayOfMonth = expenseDay === lastDayOfMonth;
           const isLateHour = expenseHour >= 22;
           const isProbablyNextMonth = isLastDayOfMonth && isLateHour;
 
           // Si c'est probablement une transaction du mois suivant, l'exclure
           if (isProbablyNextMonth) {
             console.warn(
-              `Filtrage: ${expense.description} (${expense.date.toISOString()}) est probablement une transaction du mois suivant (jour ${expenseDay}, heure ${expenseHour})`
+              `Filtrage: ${expense.description} (${expense.date.toISOString()}) est probablement une transaction du mois suivant (jour ${expenseDay}/${lastDayOfMonth}, heure ${expenseHour})`
             );
             return false;
           }

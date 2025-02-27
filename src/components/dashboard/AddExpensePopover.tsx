@@ -1,5 +1,6 @@
 'use client';
 
+import { useDashboard } from '@/components/providers/MonthProvider';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import {
@@ -49,6 +50,10 @@ export function AddExpensePopover() {
   const [open, setOpen] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Récupérer le contexte du dashboard pour pouvoir le rafraîchir
+  const dashboardData = useDashboard();
+  const refreshDashboard = dashboardData.refreshData;
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -129,8 +134,10 @@ export function AddExpensePopover() {
               : 'Votre revenu a été ajouté avec succès',
         });
 
-        // Recharger la page pour afficher la nouvelle dépense
-        window.location.reload();
+        // Rafraîchir les données du dashboard au lieu de recharger la page
+        if (refreshDashboard) {
+          await refreshDashboard();
+        }
       } else {
         const errorData = await response.json();
         toast.error('Erreur', {
