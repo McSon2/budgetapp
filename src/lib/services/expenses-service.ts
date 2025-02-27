@@ -57,19 +57,21 @@ export async function getExpenses(
     }
 
     if (endDate) {
-      // Pour la date de fin, nous voulons inclure toutes les transactions du jour
-      const normalizedEndDate = normalizeDate(endDate);
-
-      // Si la date de fin est au format ISO et contient des informations d'heure/minute/seconde,
-      // utiliser la date normalisée telle quelle
+      // Pour la date de fin, nous voulons utiliser la date exacte fournie
+      // car elle devrait déjà inclure les informations d'heure correctes (23:59:59.999)
+      // Nous utilisons directement new Date() au lieu de normalizeDate pour préserver l'heure
       if (endDate.includes('T') && endDate.includes(':')) {
-        whereCondition.date.lte = normalizedEndDate;
+        // Si la date contient déjà des informations d'heure, l'utiliser telle quelle
+        const exactEndDate = new Date(endDate);
+        whereCondition.date.lte = exactEndDate;
+        console.log(`Using exact end date: ${exactEndDate.toISOString()}`);
       } else {
-        // Sinon, s'assurer que nous incluons toute la journée
-        // En ajoutant 12 heures pour être sûr d'inclure toutes les transactions du jour
+        // Sinon, normaliser la date mais s'assurer qu'elle est à la fin de la journée
+        const normalizedEndDate = normalizeDate(endDate);
         const endOfDay = new Date(normalizedEndDate);
         endOfDay.setUTCHours(23, 59, 59, 999);
         whereCondition.date.lte = endOfDay;
+        console.log(`Using end of day: ${endOfDay.toISOString()}`);
       }
     }
   }

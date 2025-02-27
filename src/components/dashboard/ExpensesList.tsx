@@ -596,29 +596,6 @@ export function ExpensesList() {
     return normalized;
   };
 
-  // Fonction utilitaire pour normaliser une date à la fin du mois en UTC
-  const normalizeToEndOfMonth = (date: Date | string): Date => {
-    const dateObj = typeof date === 'string' ? new Date(date) : date;
-    const normalized = new Date(dateObj);
-
-    // Calculer le dernier jour du mois
-    // Passer au mois suivant (index + 1) et jour 0 pour obtenir le dernier jour du mois actuel
-    const lastDay = new Date(
-      normalized.getUTCFullYear(),
-      normalized.getUTCMonth() + 1,
-      0
-    ).getUTCDate();
-
-    console.log(
-      `Dernier jour du mois: ${lastDay} pour le mois ${normalized.getUTCMonth() + 1}/${normalized.getUTCFullYear()}`
-    );
-
-    normalized.setUTCDate(lastDay);
-    normalized.setUTCHours(23, 59, 59, 999);
-
-    return normalized;
-  };
-
   const fetchExpenses = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -627,18 +604,20 @@ export function ExpensesList() {
         selectedMonth instanceof Date ? selectedMonth : new Date(selectedMonth)
       );
 
-      // Obtenir le début et la fin du mois sélectionné en UTC
+      // Obtenir le début du mois sélectionné en UTC
       const start = normalizeToStartOfMonth(dateToUse).toISOString();
 
-      // Pour la date de fin, s'assurer qu'elle inclut le dernier jour du mois
-      const endDate = normalizeToEndOfMonth(dateToUse);
-      const end = endDate.toISOString();
+      // Pour la date de fin, calculer explicitement le dernier jour du mois
+      // et s'assurer qu'elle inclut toute la journée
+      const year = dateToUse.getUTCFullYear();
+      const month = dateToUse.getUTCMonth();
+      // Créer une date pour le premier jour du mois suivant, puis reculer d'un jour
+      const lastDayOfMonth = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
+      const end = lastDayOfMonth.toISOString();
 
-      console.log(
-        `Fetching expenses for month: ${dateToUse.getUTCFullYear()}-${dateToUse.getUTCMonth() + 1}`
-      );
+      console.log(`Fetching expenses for month: ${year}-${month + 1}`);
       console.log(`Start date: ${start}, End date: ${end}`);
-      console.log(`Last day of month: ${endDate.getUTCDate()}`);
+      console.log(`Last day of month: ${lastDayOfMonth.getUTCDate()}`);
 
       // Ajouter les paramètres de date à la requête
       const response = await fetch(`/api/expenses?startDate=${start}&endDate=${end}`);
