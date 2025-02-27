@@ -617,14 +617,14 @@ export function BudgetManager() {
                 <li className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-[#4BC0C0]" />
                   <span>
-                    <strong>10%</strong> pour l`&apos;`épargne et les investissements
+                    <strong>10%</strong> pour l&apos;épargne et les investissements
                   </span>
                 </li>
               </ul>
             </div>
 
             <div className="flex-1">
-              <h3 className="text-lg font-semibold mb-2">Conseils d`&apos;`utilisation</h3>
+              <h3 className="text-lg font-semibold mb-2">Conseils d&apos;utilisation</h3>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li className="flex items-start gap-2">
                   <ArrowRightIcon className="h-4 w-4 mt-0.5 text-primary" />

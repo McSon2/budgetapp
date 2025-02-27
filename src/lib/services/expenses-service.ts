@@ -18,43 +18,51 @@ const normalizeDate = (date: Date | string): Date => {
   const dateObj = typeof date === 'string' ? new Date(date) : date;
 
   // Extraire les composants de la date en tenant compte du fuseau horaire local
-  // Utiliser getDate() au lieu de getUTCDate() pour respecter le jour local
   const year = dateObj.getFullYear();
   const month = dateObj.getMonth();
   const day = dateObj.getDate();
+  const hours = dateObj.getHours();
 
-  // Créer une nouvelle date avec le jour spécifié à midi UTC
-  // Utiliser midi (12:00) au lieu de minuit (00:00) pour éviter les problèmes de fuseau horaire
+  // Créer une nouvelle date en UTC à midi pour éviter les problèmes de fuseau horaire
   const normalized = new Date(Date.UTC(year, month, day, 12, 0, 0, 0));
-
-  // Vérifier si c'est le premier jour du mois
-  const isFirstDayOfMonth = day === 1;
-
-  // Si c'est le premier jour du mois, s'assurer que la date normalisée est bien le premier jour du mois
-  if (isFirstDayOfMonth) {
-    // Vérifier que la date normalisée est bien le premier jour du mois
-    if (normalized.getUTCDate() !== 1) {
-      console.warn(
-        `Correction de date: Le premier jour du mois a été converti incorrectement. Ajustement forcé au 1er jour.`
-      );
-      // Forcer au premier jour du mois
-      normalized.setUTCDate(1);
-    }
-  }
 
   // Vérifier si c'est le dernier jour du mois
   const lastDayOfMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
   const isLastDayOfMonth = day === lastDayOfMonth;
 
-  // Si c'est le dernier jour du mois, s'assurer que la date normalisée est bien le dernier jour du mois
-  if (isLastDayOfMonth) {
+  // Vérifier si c'est une date de fin de journée (après 22h)
+  const isLateHour = hours >= 22;
+
+  // Si c'est une date de fin de journée le dernier jour du mois,
+  // s'assurer qu'elle est bien traitée comme étant du dernier jour
+  if (isLastDayOfMonth && isLateHour) {
+    console.log(
+      `Correction de date: Transaction de fin de journée (${hours}h) le dernier jour du mois (${day}/${month + 1}/${year})`
+    );
+
     // Vérifier que la date normalisée est bien le dernier jour du mois
     if (normalized.getUTCDate() !== lastDayOfMonth) {
       console.warn(
-        `Correction de date: Le dernier jour du mois a été converti incorrectement. Ajustement forcé au dernier jour.`
+        `Correction: La date a été convertie incorrectement. Ajustement forcé au dernier jour.`
       );
-      // Forcer au dernier jour du mois
       normalized.setUTCDate(lastDayOfMonth);
+    }
+  }
+
+  // Si c'est une date de fin de journée (après 22h) mais pas le dernier jour du mois,
+  // vérifier si elle doit être traitée comme étant du jour suivant
+  else if (isLateHour) {
+    // Si c'est 23h le 27 du mois, cela pourrait être considéré comme le 28 à 00h
+    if (day < lastDayOfMonth) {
+      console.log(
+        `Correction de date: Transaction de fin de journée (${hours}h) le ${day}/${month + 1}/${year}`
+      );
+      console.log(
+        `Cette transaction pourrait être considérée comme étant du jour suivant (${day + 1}/${month + 1}/${year})`
+      );
+
+      // Ajuster au jour suivant à midi
+      normalized.setUTCDate(day + 1);
     }
   }
 
@@ -122,24 +130,29 @@ export async function getExpenses(
           const expenseHour = expenseDate.getUTCHours();
 
           // Vérifier si la transaction est réellement du mois demandé
-          // Calculer correctement le dernier jour du mois
-          const lastDayOfMonth = new Date(Date.UTC(expenseYear, expenseMonth + 1, 0)).getUTCDate();
-          const isLastDayOfMonth = expenseDay === lastDayOfMonth;
-          const isLateHour = expenseHour >= 22;
-          const isProbablyNextMonth = isLastDayOfMonth && isLateHour;
-
-          // Si c'est probablement une transaction du mois suivant, l'exclure
-          if (isProbablyNextMonth) {
-            console.warn(
-              `Filtrage: ${expense.description} (${expense.date.toISOString()}) est probablement une transaction du mois suivant (jour ${expenseDay}/${lastDayOfMonth}, heure ${expenseHour})`
-            );
-            return false;
-          }
+          // MODIFICATION: Ne plus filtrer les transactions de fin de journée
+          // car elles sont maintenant correctement normalisées
 
           // Vérification standard du mois et de l'année
           const isInRequestedMonth = expenseMonth === startMonth && expenseYear === startYear;
 
+          // Si la transaction n'est pas du mois demandé, vérifier si c'est une transaction de fin de journée
+          // qui pourrait appartenir au mois suivant
           if (!isInRequestedMonth) {
+            // Vérifier si c'est une transaction de fin de journée du mois précédent
+            const isPreviousMonthLastDay =
+              expenseMonth === (startMonth === 0 ? 11 : startMonth - 1) && // Mois précédent
+              (expenseMonth === 11 ? expenseYear === startYear - 1 : expenseYear === startYear) && // Année correcte
+              expenseDay === new Date(Date.UTC(expenseYear, expenseMonth + 1, 0)).getUTCDate() && // Dernier jour du mois
+              expenseHour >= 22; // Fin de journée
+
+            if (isPreviousMonthLastDay) {
+              console.log(
+                `Transaction de fin de mois acceptée: ${expense.description} (${expense.date.toISOString()})`
+              );
+              return true; // Accepter cette transaction comme appartenant au mois demandé
+            }
+
             console.warn(
               `Filtrage: ${expense.description} (${expense.date.toISOString()}) n'est pas dans le mois demandé (${startMonth + 1}/${startYear}), mais dans le mois ${expenseMonth + 1}/${expenseYear}`
             );
@@ -360,16 +373,16 @@ export async function addExpense(
   const isLastDayOfMonth = day === lastDayOfMonth;
   const isLateHour = hour >= 22;
 
-  if (isLastDayOfMonth && isLateHour) {
-    console.warn(
-      `Attention: Transaction créée le dernier jour du mois (${day}/${month + 1}) à ${hour}h`
-    );
-    console.warn(`Cette transaction pourrait être considérée comme appartenant au mois suivant`);
+  // Afficher des informations de débogage sur la date
+  console.log(`Ajout d'une transaction: Date originale = ${expense.date}`);
+  console.log(`Jour: ${day}, Mois: ${month + 1}, Année: ${year}, Heure: ${hour}`);
+  console.log(
+    `Dernier jour du mois: ${lastDayOfMonth}, Est dernier jour: ${isLastDayOfMonth}, Est fin de journée: ${isLateHour}`
+  );
 
-    // Suggérer d'utiliser le premier jour du mois suivant
-    const nextMonthDate = new Date(year, month + 1, 1, 12, 0, 0);
-    console.warn(`Suggestion: Utiliser plutôt la date ${nextMonthDate.toISOString()}`);
-  }
+  // Normaliser la date de la dépense
+  const normalizedDate = normalizeDate(expense.date);
+  console.log(`Date normalisée: ${normalizedDate.toISOString()}`);
 
   // Trouver ou créer la catégorie
   let categoryId: string | null = null;
@@ -418,9 +431,6 @@ export async function addExpense(
 
     recurrenceId = recurrence.id;
   }
-
-  // Normaliser la date de la dépense
-  const normalizedDate = normalizeDate(expense.date);
 
   // Créer la dépense dans la base de données
   const dbExpense = await prisma.expense.create({

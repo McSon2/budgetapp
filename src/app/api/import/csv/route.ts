@@ -73,7 +73,25 @@ export async function POST(request: NextRequest) {
 
         // Convertir la date (format JJ/MM/AAAA)
         const [day, month, year] = transaction.date.split('/').map(Number);
-        const date = new Date(year, month - 1, day);
+
+        // Extraire l'heure si elle est spécifiée (format HH:MM)
+        let hours = 0;
+        let minutes = 0;
+
+        if (transaction.time && transaction.time.trim()) {
+          const timeParts = transaction.time.split(':');
+          if (timeParts.length >= 1) hours = parseInt(timeParts[0], 10) || 0;
+          if (timeParts.length >= 2) minutes = parseInt(timeParts[1], 10) || 0;
+        }
+
+        // Créer la date en UTC pour éviter les problèmes de fuseau horaire
+        // Utiliser Date.UTC pour créer une date en UTC
+        const utcTimestamp = Date.UTC(year, month - 1, day, hours, minutes, 0, 0);
+        const date = new Date(utcTimestamp);
+
+        console.log(
+          `CSV Import: Date=${transaction.date}, Time=${transaction.time} => UTC=${date.toISOString()}`
+        );
 
         // Vérifier si la date est valide
         if (isNaN(date.getTime())) {
@@ -138,11 +156,24 @@ export async function POST(request: NextRequest) {
             let endDate = null;
             if (transaction.endDate) {
               const [endDay, endMonth, endYear] = transaction.endDate.split('/').map(Number);
-              const parsedEndDate = new Date(endYear, endMonth - 1, endDay);
+              // Créer la date de fin en UTC pour éviter les problèmes de fuseau horaire
+              const endDateUtcTimestamp = Date.UTC(
+                endYear,
+                endMonth - 1,
+                endDay,
+                hours,
+                minutes,
+                0,
+                0
+              );
+              const parsedEndDate = new Date(endDateUtcTimestamp);
 
               // Vérifier si la date de fin est valide
               if (!isNaN(parsedEndDate.getTime())) {
                 endDate = parsedEndDate;
+                console.log(
+                  `CSV Import: EndDate=${transaction.endDate} => UTC=${endDate.toISOString()}`
+                );
               }
             }
 
