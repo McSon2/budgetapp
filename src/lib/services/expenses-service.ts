@@ -15,7 +15,8 @@ export type Expense = {
 // Fonction utilitaire pour normaliser une date en UTC
 const normalizeDate = (date: Date | string): Date => {
   const dateObj = typeof date === 'string' ? new Date(date) : date;
-  // Créer une nouvelle date en préservant le jour, mois et année
+
+  // Extraire les composants de la date
   const year = dateObj.getFullYear();
   const month = dateObj.getMonth();
   const day = dateObj.getDate();
@@ -23,7 +24,10 @@ const normalizeDate = (date: Date | string): Date => {
   // Créer une nouvelle date avec le jour spécifié à midi UTC
   // Utiliser midi (12:00) au lieu de minuit (00:00) pour éviter les problèmes de fuseau horaire
   const normalized = new Date(Date.UTC(year, month, day, 12, 0, 0, 0));
-  console.log(`Normalizing date: ${dateObj.toISOString()} -> ${normalized.toISOString()}`);
+
+  console.log(
+    `Normalizing date: ${dateObj.toISOString()} -> ${normalized.toISOString()} (day=${day}, month=${month}, year=${year})`
+  );
   return normalized;
 };
 
@@ -48,15 +52,32 @@ export async function getExpenses(
     whereCondition.date = {};
 
     if (startDate) {
-      whereCondition.date.gte = normalizeDate(startDate);
+      const normalizedStartDate = normalizeDate(startDate);
+      whereCondition.date.gte = normalizedStartDate;
     }
 
     if (endDate) {
-      whereCondition.date.lte = normalizeDate(endDate);
+      // Pour la date de fin, nous voulons inclure toutes les transactions du jour
+      const normalizedEndDate = normalizeDate(endDate);
+
+      // Si la date de fin est au format ISO et contient des informations d'heure/minute/seconde,
+      // utiliser la date normalisée telle quelle
+      if (endDate.includes('T') && endDate.includes(':')) {
+        whereCondition.date.lte = normalizedEndDate;
+      } else {
+        // Sinon, s'assurer que nous incluons toute la journée
+        // En ajoutant 12 heures pour être sûr d'inclure toutes les transactions du jour
+        const endOfDay = new Date(normalizedEndDate);
+        endOfDay.setUTCHours(23, 59, 59, 999);
+        whereCondition.date.lte = endOfDay;
+      }
     }
   }
 
   console.log('Where condition:', JSON.stringify(whereCondition, null, 2));
+  if (whereCondition.date?.lte) {
+    console.log('Date de fin (lte):', whereCondition.date.lte.toISOString());
+  }
 
   // Récupérer les dépenses depuis la base de données via Prisma
   const dbExpenses = await prisma.expense.findMany({

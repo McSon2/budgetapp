@@ -15,8 +15,13 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate') || undefined;
     const endDate = searchParams.get('endDate') || undefined;
 
+    console.log(`API: Récupération des dépenses pour l'utilisateur ${user.id}`);
+    console.log(`API: Dates - du ${startDate} au ${endDate}`);
+
     // Récupérer les dépenses avec les filtres de date
     const expenses = await getExpenses(user.id, startDate, endDate);
+    console.log(`API: ${expenses.length} dépenses trouvées`);
+
     return NextResponse.json(expenses);
   } catch (error) {
     console.error('Error fetching expenses:', error);

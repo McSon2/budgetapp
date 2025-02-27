@@ -600,14 +600,22 @@ export function ExpensesList() {
   const normalizeToEndOfMonth = (date: Date | string): Date => {
     const dateObj = typeof date === 'string' ? new Date(date) : date;
     const normalized = new Date(dateObj);
+
     // Calculer le dernier jour du mois
+    // Passer au mois suivant (index + 1) et jour 0 pour obtenir le dernier jour du mois actuel
     const lastDay = new Date(
       normalized.getUTCFullYear(),
       normalized.getUTCMonth() + 1,
       0
     ).getUTCDate();
+
+    console.log(
+      `Dernier jour du mois: ${lastDay} pour le mois ${normalized.getUTCMonth() + 1}/${normalized.getUTCFullYear()}`
+    );
+
     normalized.setUTCDate(lastDay);
     normalized.setUTCHours(23, 59, 59, 999);
+
     return normalized;
   };
 
@@ -621,9 +629,16 @@ export function ExpensesList() {
 
       // Obtenir le début et la fin du mois sélectionné en UTC
       const start = normalizeToStartOfMonth(dateToUse).toISOString();
-      const end = normalizeToEndOfMonth(dateToUse).toISOString();
 
-      console.log('Fetching expenses from', start, 'to', end);
+      // Pour la date de fin, s'assurer qu'elle inclut le dernier jour du mois
+      const endDate = normalizeToEndOfMonth(dateToUse);
+      const end = endDate.toISOString();
+
+      console.log(
+        `Fetching expenses for month: ${dateToUse.getUTCFullYear()}-${dateToUse.getUTCMonth() + 1}`
+      );
+      console.log(`Start date: ${start}, End date: ${end}`);
+      console.log(`Last day of month: ${endDate.getUTCDate()}`);
 
       // Ajouter les paramètres de date à la requête
       const response = await fetch(`/api/expenses?startDate=${start}&endDate=${end}`);
@@ -633,7 +648,22 @@ export function ExpensesList() {
       }
 
       const data = await response.json();
-      console.log('Fetched expenses:', data);
+      console.log(`Fetched ${data.length} expenses`);
+
+      // Vérifier si la transaction spécifique est présente
+      const specificTransaction = data.find(
+        (expense: Expense) =>
+          expense.name === 'autre' &&
+          expense.amount === -65.48 &&
+          expense.date.includes('2025-02-28')
+      );
+
+      if (specificTransaction) {
+        console.log('Transaction spécifique trouvée:', specificTransaction);
+      } else {
+        console.log('Transaction spécifique NON trouvée dans les résultats');
+      }
+
       setExpenses(data);
       // Réinitialiser le scroll infini
       setDisplayLimit(10);
@@ -661,6 +691,7 @@ export function ExpensesList() {
       const filteredExpenses = getFilteredAndSortedExpenses();
       setHasMore(displayLimit + 10 < filteredExpenses.length);
     }, 300);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoadingMore, hasMore, displayLimit]);
 
   // Observer pour le scroll infini
@@ -691,6 +722,7 @@ export function ExpensesList() {
     setDisplayLimit(10);
     const filteredExpenses = getFilteredAndSortedExpenses();
     setHasMore(filteredExpenses.length > 10);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm, categoryFilter, typeFilter, sortField, sortDirection]);
 
   const fetchCategories = async () => {
