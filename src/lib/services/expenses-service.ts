@@ -36,10 +36,6 @@ const normalizeDate = (date: Date | string): Date => {
   // Si c'est une date de fin de journée le dernier jour du mois,
   // s'assurer qu'elle est bien traitée comme étant du dernier jour
   if (isLastDayOfMonth && isLateHour) {
-    console.log(
-      `Correction de date: Transaction de fin de journée (${hours}h) le dernier jour du mois (${day}/${month + 1}/${year})`
-    );
-
     // Vérifier que la date normalisée est bien le dernier jour du mois
     if (normalized.getUTCDate() !== lastDayOfMonth) {
       console.warn(
@@ -54,13 +50,6 @@ const normalizeDate = (date: Date | string): Date => {
   else if (isLateHour) {
     // Si c'est 23h le 27 du mois, cela pourrait être considéré comme le 28 à 00h
     if (day < lastDayOfMonth) {
-      console.log(
-        `Correction de date: Transaction de fin de journée (${hours}h) le ${day}/${month + 1}/${year}`
-      );
-      console.log(
-        `Cette transaction pourrait être considérée comme étant du jour suivant (${day + 1}/${month + 1}/${year})`
-      );
-
       // Ajuster au jour suivant à midi
       normalized.setUTCDate(day + 1);
     }
@@ -147,9 +136,6 @@ export async function getExpenses(
               expenseHour >= 22; // Fin de journée
 
             if (isPreviousMonthLastDay) {
-              console.log(
-                `Transaction de fin de mois acceptée: ${expense.description} (${expense.date.toISOString()})`
-              );
               return true; // Accepter cette transaction comme appartenant au mois demandé
             }
 
@@ -361,28 +347,8 @@ export async function addExpense(
     };
   }
 ): Promise<Expense> {
-  // Analyser la date pour vérifier si c'est une date de fin de mois en soirée
-  const expenseDate = new Date(expense.date);
-  const day = expenseDate.getDate();
-  const month = expenseDate.getMonth();
-  const year = expenseDate.getFullYear();
-  const hour = expenseDate.getHours();
-
-  // Vérifier si c'est le dernier jour du mois
-  const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
-  const isLastDayOfMonth = day === lastDayOfMonth;
-  const isLateHour = hour >= 22;
-
-  // Afficher des informations de débogage sur la date
-  console.log(`Ajout d'une transaction: Date originale = ${expense.date}`);
-  console.log(`Jour: ${day}, Mois: ${month + 1}, Année: ${year}, Heure: ${hour}`);
-  console.log(
-    `Dernier jour du mois: ${lastDayOfMonth}, Est dernier jour: ${isLastDayOfMonth}, Est fin de journée: ${isLateHour}`
-  );
-
   // Normaliser la date de la dépense
   const normalizedDate = normalizeDate(expense.date);
-  console.log(`Date normalisée: ${normalizedDate.toISOString()}`);
 
   // Trouver ou créer la catégorie
   let categoryId: string | null = null;

@@ -44,8 +44,6 @@ const normalizeToEndOfMonth = (date: Date | string): Date => {
   // (ce qui équivaut au dernier jour du mois actuel)
   const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
 
-  console.log(`Calcul du dernier jour pour ${month + 1}/${year}: ${lastDay}`);
-
   // Créer une nouvelle date au dernier jour du mois à 23:59:59.999
   const normalized = new Date(Date.UTC(year, month, lastDay, 23, 59, 59, 999));
 
@@ -69,10 +67,6 @@ export async function getDashboardData(
   const today = new Date();
   today.setUTCHours(0, 0, 0, 0);
 
-  // Afficher les dates pour le débogage
-  console.log(`Date actuelle: ${today.toISOString()}`);
-  console.log(`Date sélectionnée: ${normalizedDate.toISOString()}`);
-
   // MODIFICATION IMPORTANTE: Pour les besoins de test avec des dates futures,
   // nous allons considérer que nous sommes au dernier jour du mois sélectionné
   // Cela permettra d'inclure toutes les transactions du mois dans le calcul du solde
@@ -84,10 +78,6 @@ export async function getDashboardData(
 
   // Créer une date simulée au dernier jour du mois
   const simulatedToday = new Date(Date.UTC(year, month, lastDayOfMonth, 0, 0, 0, 0));
-
-  console.log(
-    `Date simulée pour les calculs: ${simulatedToday.toISOString()} (jour ${simulatedToday.getUTCDate()})`
-  );
 
   // Déterminer si le mois sélectionné est le mois courant
   // Utiliser la date réelle pour cette détermination
@@ -112,11 +102,6 @@ export async function getDashboardData(
   // pour inclure toutes les transactions du mois
   const currentBalanceEndDate = isCurrentMonth || isFutureMonth ? simulatedToday : endDate;
 
-  console.log(`Calcul du solde actuel jusqu'à: ${currentBalanceEndDate.toISOString()}`);
-  console.log(`Mois sélectionné: ${startDate.toISOString()} - ${endDate.toISOString()}`);
-  console.log(`Type de mois: ${isCurrentMonth ? 'courant' : isPastMonth ? 'passé' : 'futur'}`);
-  console.log(`Dernier jour du mois: ${endDate.getUTCDate()} (${endDate.toISOString()})`);
-
   // Récupérer toutes les dépenses de l'utilisateur jusqu'à la date limite
   const expenses = await prisma.expense.findMany({
     where: {
@@ -131,17 +116,8 @@ export async function getDashboardData(
     },
   });
 
-  // Afficher les dépenses pour le débogage
-  console.log(
-    `Dépenses pour le calcul du solde actuel (jusqu'à ${currentBalanceEndDate.toISOString()}):`
-  );
-  expenses.forEach(expense => {
-    console.log(`- ${expense.description}: ${expense.amount} € (${expense.date.toISOString()})`);
-  });
-
   // Calculer le solde actuel (toutes les dépenses jusqu'à la date limite)
   const currentBalance = expenses.reduce((acc, expense) => acc + expense.amount, 0);
-  console.log(`Solde actuel calculé: ${currentBalance} €`);
 
   // Récupérer les dépenses du mois sélectionné
   const monthExpenses = await prisma.expense.findMany({
@@ -177,14 +153,6 @@ export async function getDashboardData(
     return isInSelectedMonth;
   });
 
-  // Afficher les transactions pour le débogage
-  console.log(
-    `Transactions du mois (${startDate.getUTCMonth() + 1}/${startDate.getUTCFullYear()}):`
-  );
-  filteredMonthExpenses.forEach(expense => {
-    console.log(`- ${expense.description}: ${expense.amount} € (${expense.date.toISOString()})`);
-  });
-
   // Calculer le total des dépenses et revenus du mois
   const monthlyExpensesTotal = filteredMonthExpenses
     .filter(expense => expense.amount < 0)
@@ -202,7 +170,6 @@ export async function getDashboardData(
     // Pour les mois futurs ou le mois courant, le solde de fin de mois doit inclure toutes les transactions du mois
     // Vérifier si toutes les transactions du mois sont déjà incluses dans le solde actuel
     if (currentBalanceEndDate.getTime() === endDate.getTime()) {
-      console.log(`Toutes les transactions du mois sont déjà incluses dans le solde actuel`);
       // Le solde de fin de mois est déjà correct (égal au solde actuel)
     } else {
       // Sinon, ajouter les transactions manquantes (celles après la date simulée jusqu'à la fin du mois)
@@ -213,19 +180,10 @@ export async function getDashboardData(
           return isAfter(expenseDate, currentBalanceEndDate);
         })
         .reduce((acc, expense) => acc + expense.amount, 0);
-
-      console.log(`Transactions futures à ajouter au solde de fin de mois: ${futureExpenses} €`);
-      console.log(`Détail des transactions futures:`);
-      filteredMonthExpenses
-        .filter(expense => {
-          const expenseDate = new Date(expense.date);
-          return isAfter(expenseDate, currentBalanceEndDate);
-        })
-        .forEach(expense => {
-          console.log(
-            `- ${expense.description}: ${expense.amount} € (${expense.date.toISOString()})`
-          );
-        });
+      filteredMonthExpenses.filter(expense => {
+        const expenseDate = new Date(expense.date);
+        return isAfter(expenseDate, currentBalanceEndDate);
+      });
 
       endOfMonthBalance += futureExpenses;
     }
@@ -235,7 +193,6 @@ export async function getDashboardData(
     // Pour un mois passé, le solde de fin de mois devrait inclure toutes les transactions du mois
     // Vérifier si toutes les transactions du mois sont déjà incluses dans le solde actuel
     if (currentBalanceEndDate.getTime() === endDate.getTime()) {
-      console.log(`Toutes les transactions du mois passé sont déjà incluses dans le solde actuel`);
       // Le solde de fin de mois est déjà correct (égal au solde actuel)
     } else {
       // Sinon, ajouter les transactions manquantes
@@ -245,19 +202,10 @@ export async function getDashboardData(
           return isAfter(expenseDate, currentBalanceEndDate) && !isAfter(expenseDate, endDate);
         })
         .reduce((acc, expense) => acc + expense.amount, 0);
-
-      console.log(`Transactions manquantes pour le mois passé: ${missingTransactions} €`);
-      console.log(`Détail des transactions manquantes:`);
-      filteredMonthExpenses
-        .filter(expense => {
-          const expenseDate = new Date(expense.date);
-          return isAfter(expenseDate, currentBalanceEndDate) && !isAfter(expenseDate, endDate);
-        })
-        .forEach(expense => {
-          console.log(
-            `- ${expense.description}: ${expense.amount} € (${expense.date.toISOString()})`
-          );
-        });
+      filteredMonthExpenses.filter(expense => {
+        const expenseDate = new Date(expense.date);
+        return isAfter(expenseDate, currentBalanceEndDate) && !isAfter(expenseDate, endDate);
+      });
 
       endOfMonthBalance += missingTransactions;
     }

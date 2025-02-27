@@ -89,10 +89,6 @@ export async function POST(request: NextRequest) {
         const utcTimestamp = Date.UTC(year, month - 1, day, hours, minutes, 0, 0);
         const date = new Date(utcTimestamp);
 
-        console.log(
-          `CSV Import: Date=${transaction.date}, Time=${transaction.time} => UTC=${date.toISOString()}`
-        );
-
         // Vérifier si la date est valide
         if (isNaN(date.getTime())) {
           console.warn(`Date invalide ignorée: ${transaction.date}`);
@@ -171,9 +167,6 @@ export async function POST(request: NextRequest) {
               // Vérifier si la date de fin est valide
               if (!isNaN(parsedEndDate.getTime())) {
                 endDate = parsedEndDate;
-                console.log(
-                  `CSV Import: EndDate=${transaction.endDate} => UTC=${endDate.toISOString()}`
-                );
               }
             }
 
