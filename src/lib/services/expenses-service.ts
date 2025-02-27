@@ -10,13 +10,15 @@ export type Expense = {
   isRecurring?: boolean;
   recurrenceFrequency?: string;
   recurrenceEndDate?: string;
+  isGenerated?: boolean; // Indique si c'est une occurrence générée d'une dépense récurrente
 };
 
 // Fonction utilitaire pour normaliser une date en UTC
 const normalizeDate = (date: Date | string): Date => {
   const dateObj = typeof date === 'string' ? new Date(date) : date;
 
-  // Extraire les composants de la date
+  // Extraire les composants de la date en tenant compte du fuseau horaire local
+  // Utiliser getDate() au lieu de getUTCDate() pour respecter le jour local
   const year = dateObj.getFullYear();
   const month = dateObj.getMonth();
   const day = dateObj.getDate();
@@ -25,9 +27,20 @@ const normalizeDate = (date: Date | string): Date => {
   // Utiliser midi (12:00) au lieu de minuit (00:00) pour éviter les problèmes de fuseau horaire
   const normalized = new Date(Date.UTC(year, month, day, 12, 0, 0, 0));
 
-  console.log(
-    `Normalizing date: ${dateObj.toISOString()} -> ${normalized.toISOString()} (day=${day}, month=${month}, year=${year})`
-  );
+  // Vérifier si c'est le premier jour du mois
+  const isFirstDayOfMonth = day === 1;
+
+  // Si c'est le premier jour du mois, s'assurer que la date normalisée est bien le premier jour du mois
+  if (isFirstDayOfMonth) {
+    // Vérifier que la date normalisée est bien le premier jour du mois
+    if (normalized.getUTCDate() !== 1) {
+      console.warn(
+        `Correction de date: Le premier jour du mois a été converti incorrectement. Ajustement forcé au 1er jour.`
+      );
+      // Forcer au premier jour du mois
+      normalized.setUTCDate(1);
+    }
+  }
   return normalized;
 };
 
@@ -36,8 +49,6 @@ export async function getExpenses(
   startDate?: string,
   endDate?: string
 ): Promise<Expense[]> {
-  console.log(`Getting expenses for user ${userId} from ${startDate} to ${endDate}`);
-
   // Préparer les conditions de filtrage
   const whereCondition: {
     userId: string;
@@ -47,38 +58,31 @@ export async function getExpenses(
     };
   } = { userId };
 
+  // Extraire le mois et l'année des dates de début et de fin pour la vérification
+  let startMonth: number | undefined;
+  let startYear: number | undefined;
+
   // Ajouter le filtrage par date si les dates sont fournies
   if (startDate || endDate) {
     whereCondition.date = {};
 
     if (startDate) {
-      const normalizedStartDate = normalizeDate(startDate);
-      whereCondition.date.gte = normalizedStartDate;
+      // Pour la date de début, nous voulons utiliser le début de la journée
+      const startDateObj = new Date(startDate);
+      startDateObj.setUTCHours(0, 0, 0, 0);
+      whereCondition.date.gte = startDateObj;
+
+      // Extraire le mois et l'année pour la vérification
+      startMonth = startDateObj.getUTCMonth();
+      startYear = startDateObj.getUTCFullYear();
     }
 
     if (endDate) {
-      // Pour la date de fin, nous voulons utiliser la date exacte fournie
-      // car elle devrait déjà inclure les informations d'heure correctes (23:59:59.999)
-      // Nous utilisons directement new Date() au lieu de normalizeDate pour préserver l'heure
-      if (endDate.includes('T') && endDate.includes(':')) {
-        // Si la date contient déjà des informations d'heure, l'utiliser telle quelle
-        const exactEndDate = new Date(endDate);
-        whereCondition.date.lte = exactEndDate;
-        console.log(`Using exact end date: ${exactEndDate.toISOString()}`);
-      } else {
-        // Sinon, normaliser la date mais s'assurer qu'elle est à la fin de la journée
-        const normalizedEndDate = normalizeDate(endDate);
-        const endOfDay = new Date(normalizedEndDate);
-        endOfDay.setUTCHours(23, 59, 59, 999);
-        whereCondition.date.lte = endOfDay;
-        console.log(`Using end of day: ${endOfDay.toISOString()}`);
-      }
+      // Pour la date de fin, nous voulons utiliser la fin de la journée
+      const endDateObj = new Date(endDate);
+      endDateObj.setUTCHours(23, 59, 59, 999);
+      whereCondition.date.lte = endDateObj;
     }
-  }
-
-  console.log('Where condition:', JSON.stringify(whereCondition, null, 2));
-  if (whereCondition.date?.lte) {
-    console.log('Date de fin (lte):', whereCondition.date.lte.toISOString());
   }
 
   // Récupérer les dépenses depuis la base de données via Prisma
@@ -88,10 +92,54 @@ export async function getExpenses(
     orderBy: { date: 'desc' },
   });
 
-  console.log(`Found ${dbExpenses.length} expenses`);
+  // Filtrer les dépenses pour s'assurer qu'elles sont dans le mois demandé
+  // et gérer correctement les problèmes de fuseau horaire
+  const filteredDbExpenses =
+    startMonth !== undefined && startYear !== undefined
+      ? dbExpenses.filter(expense => {
+          const expenseDate = new Date(expense.date);
+          const expenseMonth = expenseDate.getUTCMonth();
+          const expenseYear = expenseDate.getUTCFullYear();
+          const expenseDay = expenseDate.getUTCDate();
+          const expenseHour = expenseDate.getUTCHours();
+
+          // Vérifier si la transaction est réellement du mois demandé
+          // Si c'est le dernier jour du mois et après 22h, considérer que c'est une transaction du mois suivant
+          const isLastDayOfMonth =
+            expenseDay === new Date(expenseYear, expenseMonth + 1, 0).getUTCDate();
+          const isLateHour = expenseHour >= 22;
+          const isProbablyNextMonth = isLastDayOfMonth && isLateHour;
+
+          // Si c'est probablement une transaction du mois suivant, l'exclure
+          if (isProbablyNextMonth) {
+            console.warn(
+              `Filtrage: ${expense.description} (${expense.date.toISOString()}) est probablement une transaction du mois suivant (jour ${expenseDay}, heure ${expenseHour})`
+            );
+            return false;
+          }
+
+          // Vérification standard du mois et de l'année
+          const isInRequestedMonth = expenseMonth === startMonth && expenseYear === startYear;
+
+          if (!isInRequestedMonth) {
+            console.warn(
+              `Filtrage: ${expense.description} (${expense.date.toISOString()}) n'est pas dans le mois demandé (${startMonth + 1}/${startYear}), mais dans le mois ${expenseMonth + 1}/${expenseYear}`
+            );
+            return false;
+          }
+
+          return true;
+        })
+      : dbExpenses;
+
+  if (filteredDbExpenses.length !== dbExpenses.length) {
+    console.warn(
+      `Filtrage: ${dbExpenses.length - filteredDbExpenses.length} transactions ont été filtrées car elles n'appartiennent pas au mois demandé`
+    );
+  }
 
   // Transformer les données de la base de données au format attendu par le frontend
-  return dbExpenses.map(expense => ({
+  const regularExpenses = filteredDbExpenses.map(expense => ({
     id: expense.id,
     name: expense.description,
     amount: expense.amount,
@@ -101,6 +149,174 @@ export async function getExpenses(
     recurrenceFrequency: expense.recurrence?.frequency,
     recurrenceEndDate: expense.recurrence?.endDate?.toISOString(),
   }));
+
+  // Si nous avons des dates de début et de fin, générer les occurrences des dépenses récurrentes
+  if (startDate && endDate) {
+    // Récupérer toutes les dépenses récurrentes de l'utilisateur
+    const recurringExpenses = await prisma.expense.findMany({
+      where: {
+        userId,
+        isRecurring: true,
+      },
+      include: { category: true, recurrence: true },
+    });
+
+    // Convertir les dates de début et de fin en objets Date
+    const start = new Date(startDate);
+    start.setUTCHours(0, 0, 0, 0);
+
+    const end = new Date(endDate);
+    end.setUTCHours(23, 59, 59, 999);
+
+    // Générer les occurrences pour le mois sélectionné
+    const generatedExpenses = generateRecurringExpensesForPeriod(recurringExpenses, start, end);
+
+    // Ajouter les occurrences générées à la liste des dépenses
+    return [...regularExpenses, ...generatedExpenses];
+  }
+
+  return regularExpenses;
+}
+
+/**
+ * Génère les occurrences des dépenses récurrentes pour une période donnée
+ */
+function generateRecurringExpensesForPeriod(
+  recurringExpenses: {
+    id: string;
+    description: string;
+    amount: number;
+    date: Date;
+    isRecurring: boolean;
+    category?: { name: string } | null;
+    recurrence?: {
+      frequency: string;
+      startDate: Date;
+      endDate?: Date | null;
+    } | null;
+  }[],
+  startDate: Date,
+  endDate: Date
+): Expense[] {
+  const generatedExpenses: Expense[] = [];
+
+  // Vérifier que les dates correspondent au même mois et à la même année
+  const startMonth = startDate.getUTCMonth();
+  const startYear = startDate.getUTCFullYear();
+  const endMonth = endDate.getUTCMonth();
+  const endYear = endDate.getUTCFullYear();
+
+  if (startMonth !== endMonth || startYear !== endYear) {
+    console.warn(
+      `Les dates de début et de fin ne correspondent pas au même mois: ${startMonth + 1}/${startYear} - ${endMonth + 1}/${endYear}`
+    );
+  }
+
+  // Créer un ensemble pour suivre les dépenses originales déjà existantes
+  // Utiliser un format qui inclut le mois et l'année pour éviter les confusions entre les mois
+  const existingExpenseDates = new Set<string>();
+
+  recurringExpenses.forEach(expense => {
+    if (!expense.recurrence) {
+      return;
+    }
+
+    const { id, description, amount, category, recurrence } = expense;
+    const { frequency, startDate: recurrenceStart } = recurrence;
+
+    // Ignorer les dépenses dont la date de début est après la fin de la période
+    if (recurrenceStart > endDate) {
+      return;
+    }
+
+    // Ajouter la date originale à l'ensemble des dates existantes
+    // Utiliser un format qui inclut le mois et l'année pour éviter les confusions entre les mois
+    const originalMonth = recurrenceStart.getUTCMonth();
+    const originalYear = recurrenceStart.getUTCFullYear();
+    const originalDay = recurrenceStart.getUTCDate();
+    const originalDateKey = `${id}-${originalYear}-${originalMonth + 1}-${originalDay}`;
+    existingExpenseDates.add(originalDateKey);
+
+    let currentDate = new Date(recurrenceStart);
+
+    // Trouver la première occurrence dans la période ou après la date de début
+    while (currentDate < startDate) {
+      switch (frequency) {
+        case 'daily':
+          currentDate = addDays(currentDate, 1);
+          break;
+        case 'weekly':
+          currentDate = addWeeks(currentDate, 1);
+          break;
+        case 'monthly':
+          currentDate = addMonths(currentDate, 1);
+          break;
+        case 'yearly':
+          currentDate = addYears(currentDate, 1);
+          break;
+        default:
+          return; // Fréquence non reconnue
+      }
+    }
+
+    // Générer toutes les occurrences dans la période
+    while (currentDate <= endDate) {
+      // Vérifier que l'occurrence est dans le même mois que la période demandée
+      const occurrenceMonth = currentDate.getUTCMonth();
+      const occurrenceYear = currentDate.getUTCFullYear();
+      const occurrenceDay = currentDate.getUTCDate();
+
+      if (occurrenceMonth !== startMonth || occurrenceYear !== startYear) {
+        break; // Sortir de la boucle si on dépasse le mois demandé
+      }
+
+      // Créer une clé unique qui inclut le mois et l'année pour cette occurrence
+      const dateKey = `${id}-${occurrenceYear}-${occurrenceMonth + 1}-${occurrenceDay}`;
+
+      // Vérifier si cette date correspond à la date de début de la récurrence
+      // ou si elle est déjà dans l'ensemble des dates existantes
+      const isOriginalDateKey = dateKey === originalDateKey;
+      const isExistingDateKey = existingExpenseDates.has(dateKey);
+
+      if (isOriginalDateKey || isExistingDateKey) {
+        // Ne rien faire si c'est la date originale ou une date existante
+      } else {
+        // Créer une occurrence pour cette date
+        const generatedId = `${id}-${occurrenceYear}-${occurrenceMonth + 1}-${occurrenceDay}`;
+
+        generatedExpenses.push({
+          id: generatedId, // ID unique pour cette occurrence
+          name: description,
+          amount: amount,
+          date: new Date(currentDate).toISOString(),
+          category: category?.name || 'Non catégorisé',
+          isRecurring: true,
+          recurrenceFrequency: frequency,
+          isGenerated: true, // Marquer comme générée pour pouvoir les distinguer
+        });
+
+        // Ajouter cette date à l'ensemble des dates existantes pour éviter les doublons
+        existingExpenseDates.add(dateKey);
+      }
+
+      // Passer à la prochaine occurrence
+      switch (frequency) {
+        case 'daily':
+          currentDate = addDays(currentDate, 1);
+          break;
+        case 'weekly':
+          currentDate = addWeeks(currentDate, 1);
+          break;
+        case 'monthly':
+          currentDate = addMonths(currentDate, 1);
+          break;
+        case 'yearly':
+          currentDate = addYears(currentDate, 1);
+          break;
+      }
+    }
+  });
+  return generatedExpenses;
 }
 
 export async function addExpense(
@@ -114,6 +330,29 @@ export async function addExpense(
     };
   }
 ): Promise<Expense> {
+  // Analyser la date pour vérifier si c'est une date de fin de mois en soirée
+  const expenseDate = new Date(expense.date);
+  const day = expenseDate.getDate();
+  const month = expenseDate.getMonth();
+  const year = expenseDate.getFullYear();
+  const hour = expenseDate.getHours();
+
+  // Vérifier si c'est le dernier jour du mois
+  const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+  const isLastDayOfMonth = day === lastDayOfMonth;
+  const isLateHour = hour >= 22;
+
+  if (isLastDayOfMonth && isLateHour) {
+    console.warn(
+      `Attention: Transaction créée le dernier jour du mois (${day}/${month + 1}) à ${hour}h`
+    );
+    console.warn(`Cette transaction pourrait être considérée comme appartenant au mois suivant`);
+
+    // Suggérer d'utiliser le premier jour du mois suivant
+    const nextMonthDate = new Date(year, month + 1, 1, 12, 0, 0);
+    console.warn(`Suggestion: Utiliser plutôt la date ${nextMonthDate.toISOString()}`);
+  }
+
   // Trouver ou créer la catégorie
   let categoryId: string | null = null;
 
@@ -143,24 +382,34 @@ export async function addExpense(
   let recurrenceId: string | null = null;
 
   if (expense.isRecurring && expense.recurrence) {
+    const normalizedStartDate = normalizeDate(expense.recurrence.startDate);
+
+    let normalizedEndDate = null;
+    if (expense.recurrence.endDate) {
+      normalizedEndDate = normalizeDate(expense.recurrence.endDate);
+    }
+
     const recurrence = await prisma.recurrence.create({
       data: {
         frequency: expense.recurrence.frequency,
         interval: 1,
-        startDate: normalizeDate(expense.recurrence.startDate),
-        endDate: expense.recurrence.endDate ? normalizeDate(expense.recurrence.endDate) : null,
+        startDate: normalizedStartDate,
+        endDate: normalizedEndDate,
       },
     });
 
     recurrenceId = recurrence.id;
   }
 
+  // Normaliser la date de la dépense
+  const normalizedDate = normalizeDate(expense.date);
+
   // Créer la dépense dans la base de données
   const dbExpense = await prisma.expense.create({
     data: {
       description: expense.name,
       amount: expense.amount,
-      date: normalizeDate(expense.date),
+      date: normalizedDate,
       isRecurring: expense.isRecurring || false,
       userId,
       categoryId,
@@ -328,22 +577,14 @@ export async function getRecurringExpenses(userId: string): Promise<
   });
 
   const today = new Date();
-  console.log('Date actuelle (getRecurringExpenses):', today);
 
   // Transformer les données pour le format attendu par le frontend
   return recurringExpenses.map(expense => {
     const startDate = expense.recurrence?.startDate || expense.date;
     const frequency = expense.recurrence?.frequency || 'monthly';
 
-    console.log(
-      `Traitement de ${expense.description}: startDate=${startDate}, frequency=${frequency}`
-    );
-
     // Si la date de départ est dans le futur, c'est la prochaine date
     if (isAfter(startDate, today)) {
-      console.log(
-        `${expense.description}: Date de départ dans le futur, prochaine date = ${startDate}`
-      );
       return {
         id: expense.id,
         description: expense.description,
@@ -369,10 +610,6 @@ export async function getRecurringExpenses(userId: string): Promise<
       if (isBefore(nextDate, today)) {
         nextDate = new Date(today.getFullYear() + 1, month, day);
       }
-
-      console.log(
-        `${expense.description}: Date annuelle ajustée = ${nextDate}, année = ${nextDate.getFullYear()}`
-      );
 
       return {
         id: expense.id,
@@ -415,10 +652,6 @@ export async function getRecurringExpenses(userId: string): Promise<
           nextDate = addMonths(nextDate, 1);
       }
     }
-
-    console.log(
-      `${expense.description}: Prochaine date calculée = ${nextDate}, année = ${nextDate.getFullYear()}`
-    );
 
     return {
       id: expense.id,

@@ -5,26 +5,46 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser();
-
     if (!user || !user.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Récupérer les paramètres de date de la requête
-    const searchParams = request.nextUrl.searchParams;
-    const startDate = searchParams.get('startDate') || undefined;
-    const endDate = searchParams.get('endDate') || undefined;
+    const userId = user.id;
+    const { searchParams } = new URL(request.url);
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
 
-    console.log(`API: Récupération des dépenses pour l'utilisateur ${user.id}`);
-    console.log(`API: Dates - du ${startDate} au ${endDate}`);
+    if (startDate && endDate) {
+      // Vérifier le format des dates
+      const startDateObj = new Date(startDate);
+      const endDateObj = new Date(endDate);
 
-    // Récupérer les dépenses avec les filtres de date
-    const expenses = await getExpenses(user.id, startDate, endDate);
-    console.log(`API: ${expenses.length} dépenses trouvées`);
+      // Vérifier que les dates sont valides
+      if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
+        console.error('API: Dates invalides:', startDate, endDate);
+        return NextResponse.json({ error: 'Invalid date format' }, { status: 400 });
+      }
+
+      // Vérifier que la date de début est avant la date de fin
+      if (startDateObj > endDateObj) {
+        console.error('API: La date de début est après la date de fin:', startDate, endDate);
+        return NextResponse.json({ error: 'Start date must be before end date' }, { status: 400 });
+      }
+
+      // Vérifier que les dates correspondent au même mois
+      if (
+        startDateObj.getUTCFullYear() !== endDateObj.getUTCFullYear() ||
+        startDateObj.getUTCMonth() !== endDateObj.getUTCMonth()
+      ) {
+        console.warn('API: Les dates ne correspondent pas au même mois:', startDate, endDate);
+      }
+    }
+
+    const expenses = await getExpenses(userId, startDate || undefined, endDate || undefined);
 
     return NextResponse.json(expenses);
   } catch (error) {
-    console.error('Error fetching expenses:', error);
+    console.error('API Error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

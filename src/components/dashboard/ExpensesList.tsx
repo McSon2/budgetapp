@@ -1,6 +1,5 @@
 'use client';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,7 +35,7 @@ import { Expense } from '@/lib/services/expenses-service';
 import { useDateStore } from '@/lib/store/date-store';
 import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { CheckIcon, UpdateIcon } from '@radix-ui/react-icons';
+import { CheckIcon, ResetIcon } from '@radix-ui/react-icons';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -615,10 +614,6 @@ export function ExpensesList() {
       const lastDayOfMonth = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
       const end = lastDayOfMonth.toISOString();
 
-      console.log(`Fetching expenses for month: ${year}-${month + 1}`);
-      console.log(`Start date: ${start}, End date: ${end}`);
-      console.log(`Last day of month: ${lastDayOfMonth.getUTCDate()}`);
-
       // Ajouter les paramètres de date à la requête
       const response = await fetch(`/api/expenses?startDate=${start}&endDate=${end}`);
 
@@ -627,29 +622,86 @@ export function ExpensesList() {
       }
 
       const data = await response.json();
-      console.log(`Fetched ${data.length} expenses`);
 
-      // Vérifier si la transaction spécifique est présente
-      const specificTransaction = data.find(
-        (expense: Expense) =>
-          expense.name === 'autre' &&
-          expense.amount === -65.48 &&
-          expense.date.includes('2025-02-28')
-      );
+      // Créer un ensemble pour suivre les IDs des dépenses déjà traitées
+      // Cela aidera à éviter les doublons, notamment pour les dépenses récurrentes
+      const processedIds = new Set<string>();
 
-      if (specificTransaction) {
-        console.log('Transaction spécifique trouvée:', specificTransaction);
-      } else {
-        console.log('Transaction spécifique NON trouvée dans les résultats');
+      // Vérifier les dates des transactions récupérées
+      const filteredData = data.filter((expense: Expense) => {
+        // Si l'ID est déjà traité (pour les dépenses générées avec le même ID de base), ignorer
+        if (expense.isGenerated && processedIds.has(expense.id.split('-')[0])) {
+          console.warn(
+            `Filtrage frontend: Doublon détecté pour ${expense.name} (ID: ${expense.id})`
+          );
+          return false;
+        }
+
+        const expenseDate = new Date(expense.date);
+        const expenseMonth = expenseDate.getMonth();
+        const expenseYear = expenseDate.getFullYear();
+        const expenseDay = expenseDate.getDate();
+        const expenseHour = expenseDate.getHours();
+
+        // Vérifier si la transaction est du mois sélectionné
+        const isCorrectMonth = expenseMonth === month && expenseYear === year;
+
+        // Vérifier si c'est une transaction de fin de mois en soirée
+        const isLastDayOfMonth = expenseDay === lastDayOfMonth.getUTCDate();
+        const isLateHour = expenseHour >= 22;
+        const isProbablyNextMonth = isLastDayOfMonth && isLateHour;
+
+        // Si c'est probablement une transaction du mois suivant, l'exclure
+        if (isProbablyNextMonth) {
+          console.warn(
+            `Filtrage frontend: ${expense.name} (${expense.date}) est probablement une transaction du mois suivant (jour ${expenseDay}, heure ${expenseHour})`
+          );
+          return false;
+        }
+
+        // Vérifier si c'est une transaction du premier jour du mois
+        const isFirstDayOfMonth = expenseDay === 1;
+        const isEarlyHour = expenseHour <= 1;
+        const isProbablyPreviousMonth = isFirstDayOfMonth && isEarlyHour;
+
+        // Si c'est probablement une transaction du mois précédent, l'exclure
+        if (isProbablyPreviousMonth && expenseMonth === month) {
+          console.warn(
+            `Filtrage frontend: ${expense.name} (${expense.date}) est probablement une transaction du mois précédent (jour ${expenseDay}, heure ${expenseHour})`
+          );
+          return false;
+        }
+
+        if (!isCorrectMonth) {
+          console.warn(
+            `Filtrage frontend: Transaction hors du mois sélectionné: ${expense.name}, Date: ${expense.date}, Mois attendu: ${month + 1}/${year}, Mois réel: ${expenseMonth + 1}/${expenseYear}`
+          );
+          return false;
+        }
+
+        // Si c'est une dépense récurrente générée, ajouter son ID de base à l'ensemble des IDs traités
+        if (expense.isGenerated) {
+          const baseId = expense.id.split('-')[0];
+          processedIds.add(baseId);
+        }
+
+        return true;
+      });
+
+      if (filteredData.length !== data.length) {
+        console.warn(
+          `Filtrage frontend: ${data.length - filteredData.length} transactions ont été filtrées car elles n'appartiennent pas au mois ${month + 1}/${year}`
+        );
       }
 
-      setExpenses(data);
+      // Utiliser les données filtrées
+      setExpenses(filteredData);
+
       // Réinitialiser le scroll infini
       setDisplayLimit(10);
-      setHasMore(data.length > 10);
+      setHasMore(filteredData.length > 10);
     } catch (error) {
       console.error('Failed to fetch expenses:', error);
-      toast.error('Impossible de récupérer les dépenses');
     } finally {
       setIsLoading(false);
     }
@@ -717,6 +769,17 @@ export function ExpensesList() {
   };
 
   const handleDelete = async (id: string) => {
+    // Ignorer les transactions générées
+    if (id.includes('-') && expenses.find(e => e.id === id)?.isGenerated) {
+      toast.error(
+        "Les transactions prévisionnelles ne peuvent pas être supprimées directement. Modifiez la transaction récurrente d'origine."
+      );
+      return;
+    }
+
+    const confirmDelete = window.confirm('Êtes-vous sûr de vouloir supprimer cette transaction ?');
+    if (!confirmDelete) return;
+
     try {
       const response = await fetch(`/api/expenses/${id}`, {
         method: 'DELETE',
@@ -735,6 +798,14 @@ export function ExpensesList() {
   };
 
   const handleEdit = (expense: Expense) => {
+    // Ignorer les transactions générées
+    if (expense.isGenerated) {
+      toast.error(
+        "Les transactions prévisionnelles ne peuvent pas être modifiées directement. Modifiez la transaction récurrente d'origine."
+      );
+      return;
+    }
+
     setEditingExpense(expense);
   };
 
@@ -890,8 +961,21 @@ export function ExpensesList() {
   const handleDeleteSelected = async () => {
     if (selectedExpenses.length === 0) return;
 
+    // Filtrer les IDs pour exclure les transactions générées
+    const realExpenseIds = selectedExpenses.filter(id => {
+      const expense = expenses.find(e => e.id === id);
+      return !expense?.isGenerated;
+    });
+
+    if (realExpenseIds.length === 0) {
+      toast.error(
+        "Les transactions prévisionnelles ne peuvent pas être supprimées directement. Modifiez les transactions récurrentes d'origine."
+      );
+      return;
+    }
+
     const confirmDelete = window.confirm(
-      `Êtes-vous sûr de vouloir supprimer ${selectedExpenses.length} transaction(s) ?`
+      `Êtes-vous sûr de vouloir supprimer ${realExpenseIds.length} transaction(s) ?`
     );
 
     if (!confirmDelete) return;
@@ -902,7 +986,7 @@ export function ExpensesList() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ ids: selectedExpenses }),
+        body: JSON.stringify({ ids: realExpenseIds }),
       });
 
       if (!response.ok) {
@@ -913,7 +997,7 @@ export function ExpensesList() {
       setExpenses(prev => prev.filter(expense => !selectedExpenses.includes(expense.id)));
       setSelectedExpenses([]);
       setIsSelectionMode(false);
-      toast.success(`${selectedExpenses.length} transaction(s) supprimée(s) avec succès`);
+      toast.success(`${realExpenseIds.length} transaction(s) supprimée(s) avec succès`);
     } catch (error) {
       console.error('Failed to delete expenses:', error);
       toast.error('Impossible de supprimer les transactions');
@@ -1082,12 +1166,14 @@ export function ExpensesList() {
                                   aria-label={`Sélectionner ${expense.name}`}
                                 />
                               )}
-                              {expense.name}
-                              {expense.isRecurring && (
-                                <Badge variant="outline" className="ml-1 text-[10px] h-4 px-1 py-0">
-                                  <UpdateIcon className="h-2.5 w-2.5 mr-0.5" />
-                                </Badge>
-                              )}
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{expense.name}</span>
+                                {(expense.isRecurring || expense.isGenerated) && (
+                                  <span className="inline-flex ml-1">
+                                    <ResetIcon className="h-3 w-3 text-muted-foreground" />
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             <div
                               className={`font-medium ${expense.amount < 0 ? 'text-red-500' : 'text-green-500'}`}
@@ -1164,12 +1250,14 @@ export function ExpensesList() {
                           <div
                             className={`${isSelectionMode ? 'sm:col-span-2' : 'sm:col-span-3'} truncate flex items-center`}
                           >
-                            {expense.name}
-                            {expense.isRecurring && (
-                              <Badge variant="outline" className="ml-2 text-xs">
-                                <UpdateIcon className="h-3 w-3 mr-1" />
-                              </Badge>
-                            )}
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{expense.name}</span>
+                              {(expense.isRecurring || expense.isGenerated) && (
+                                <span className="inline-flex ml-1">
+                                  <ResetIcon className="h-3 w-3 text-muted-foreground" />
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <div className="sm:col-span-2">
                             {expense.category ? (
