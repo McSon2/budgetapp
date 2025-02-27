@@ -52,12 +52,6 @@ export function SummaryCard({
       calculatedIncome = 0;
       calculatedExpenses = difference; // Déjà négatif
     }
-
-    console.log(
-      `[DEBUG SUMMARY] Recalcul des entrées/sorties à partir de la différence: ${difference}`
-    );
-    console.log(`[DEBUG SUMMARY] Entrées recalculées: ${calculatedIncome}`);
-    console.log(`[DEBUG SUMMARY] Sorties recalculées: ${calculatedExpenses}`);
   }
 
   // S'assurer que les valeurs sont positives pour l'affichage
