@@ -77,7 +77,7 @@ export async function getDashboardData(
   const lastDayOfMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
 
   // Créer une date simulée au dernier jour du mois
-  const simulatedToday = new Date(Date.UTC(year, month, lastDayOfMonth, 0, 0, 0, 0));
+  const simulatedToday = new Date(Date.UTC(year, month, lastDayOfMonth, 23, 59, 59, 999));
 
   // Déterminer si le mois sélectionné est le mois courant
   // Utiliser la date réelle pour cette détermination
