@@ -243,9 +243,12 @@ function EditExpenseDialog({
                     </PopoverTrigger>
                     <PopoverContent
                       className="w-auto p-0 border-2 shadow-lg backdrop-blur-sm bg-background/95 rounded-xl"
-                      align="start"
+                      align="center"
                       side="bottom"
                       avoidCollisions={true}
+                      sideOffset={5}
+                      alignOffset={0}
+                      forceMount
                     >
                       <Calendar
                         mode="single"
@@ -375,9 +378,12 @@ function EditExpenseDialog({
                         </PopoverTrigger>
                         <PopoverContent
                           className="w-auto p-0 border-2 shadow-lg backdrop-blur-sm bg-background/95 rounded-xl"
-                          align="start"
+                          align="center"
                           side="bottom"
                           avoidCollisions={true}
+                          sideOffset={5}
+                          alignOffset={0}
+                          forceMount
                         >
                           <div className="p-3 border-b">
                             <div className="flex justify-between items-center mb-2">
@@ -645,37 +651,9 @@ export function ExpensesList() {
         const expenseDate = new Date(expense.date);
         const expenseMonth = expenseDate.getMonth();
         const expenseYear = expenseDate.getFullYear();
-        const expenseDay = expenseDate.getDate();
-        const expenseHour = expenseDate.getHours();
 
         // Vérifier si la transaction est du mois sélectionné
         const isCorrectMonth = expenseMonth === month && expenseYear === year;
-
-        // Vérifier si c'est une transaction de fin de mois en soirée
-        const isLastDayOfMonth = expenseDay === lastDayOfMonth.getUTCDate();
-        const isLateHour = expenseHour >= 22;
-        const isProbablyNextMonth = isLastDayOfMonth && isLateHour;
-
-        // Si c'est probablement une transaction du mois suivant, l'exclure
-        if (isProbablyNextMonth) {
-          console.warn(
-            `Filtrage frontend: ${expense.name} (${expense.date}) est probablement une transaction du mois suivant (jour ${expenseDay}, heure ${expenseHour})`
-          );
-          return false;
-        }
-
-        // Vérifier si c'est une transaction du premier jour du mois
-        const isFirstDayOfMonth = expenseDay === 1;
-        const isEarlyHour = expenseHour <= 1;
-        const isProbablyPreviousMonth = isFirstDayOfMonth && isEarlyHour;
-
-        // Si c'est probablement une transaction du mois précédent, l'exclure
-        if (isProbablyPreviousMonth && expenseMonth === month) {
-          console.warn(
-            `Filtrage frontend: ${expense.name} (${expense.date}) est probablement une transaction du mois précédent (jour ${expenseDay}, heure ${expenseHour})`
-          );
-          return false;
-        }
 
         if (!isCorrectMonth) {
           console.warn(
