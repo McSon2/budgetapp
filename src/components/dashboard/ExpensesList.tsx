@@ -22,7 +22,6 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Select,
   SelectContent,
@@ -86,6 +85,10 @@ function EditExpenseDialog({
 }) {
   const [open, setOpen] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // États pour les dialogues de date
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [endDatePickerOpen, setEndDatePickerOpen] = useState(false);
 
   // Déterminer si c'est une dépense ou un revenu
   const expenseType = expense.amount < 0 ? 'expense' : 'income';
@@ -223,41 +226,42 @@ function EditExpenseDialog({
               render={({ field }) => (
                 <FormItem className="flex flex-col">
                   <FormLabel>Date</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant={'outline'}
-                          className={cn(
-                            'w-full pl-3 text-left font-normal',
-                            !field.value && 'text-muted-foreground'
-                          )}
-                        >
-                          {field.value ? (
-                            format(field.value, 'PPP', { locale: fr })
-                          ) : (
-                            <span>Sélectionner une date</span>
-                          )}
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      className="w-auto p-0 border-2 shadow-lg backdrop-blur-sm bg-background/95 rounded-xl"
-                      align="center"
-                      side="bottom"
-                      avoidCollisions={true}
-                      sideOffset={5}
-                      alignOffset={0}
-                      forceMount
+                  <FormControl>
+                    <Button
+                      type="button"
+                      variant={'outline'}
+                      className={cn(
+                        'w-full pl-3 text-left font-normal',
+                        !field.value && 'text-muted-foreground'
+                      )}
+                      onClick={() => setDatePickerOpen(true)}
                     >
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={field.onChange}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
+                      {field.value ? (
+                        format(field.value, 'PPP', { locale: fr })
+                      ) : (
+                        <span>Sélectionner une date</span>
+                      )}
+                    </Button>
+                  </FormControl>
+                  <Dialog open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                    <DialogContent className="sm:max-w-[425px] p-0">
+                      <DialogHeader className="px-4 pt-4 pb-2">
+                        <DialogTitle>Sélectionner une date</DialogTitle>
+                      </DialogHeader>
+                      <div className="px-4 pb-4">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={date => {
+                            field.onChange(date);
+                            setDatePickerOpen(false);
+                          }}
+                          initialFocus
+                          className="mx-auto"
+                        />
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                   <FormMessage />
                 </FormItem>
               )}
@@ -358,190 +362,195 @@ function EditExpenseDialog({
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
                       <FormLabel>Date de fin (optionnelle)</FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant={'outline'}
-                              className={cn(
-                                'w-full pl-3 text-left font-normal',
-                                !field.value && 'text-muted-foreground'
-                              )}
-                            >
-                              {field.value ? (
-                                format(field.value, 'PPP', { locale: fr })
-                              ) : (
-                                <span>Sélectionner une date de fin</span>
-                              )}
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent
-                          className="w-auto p-0 border-2 shadow-lg backdrop-blur-sm bg-background/95 rounded-xl"
-                          align="center"
-                          side="bottom"
-                          avoidCollisions={true}
-                          sideOffset={5}
-                          alignOffset={0}
-                          forceMount
+                      <FormControl>
+                        <Button
+                          type="button"
+                          variant={'outline'}
+                          className={cn(
+                            'w-full pl-3 text-left font-normal',
+                            !field.value && 'text-muted-foreground'
+                          )}
+                          onClick={() => setEndDatePickerOpen(true)}
                         >
-                          <div className="p-3 border-b">
-                            <div className="flex justify-between items-center mb-2">
-                              <h4 className="font-medium">Sélection rapide</h4>
-                            </div>
-                            <div className="grid grid-cols-3 gap-2 mb-3">
-                              <div>
-                                <label className="text-sm font-medium mb-1 block">Année</label>
-                                <Select
-                                  onValueChange={value => {
-                                    const newDate = new Date(field.value || new Date());
-                                    newDate.setFullYear(parseInt(value));
-                                    field.onChange(newDate);
-                                  }}
-                                  defaultValue={
-                                    field.value
-                                      ? field.value.getFullYear().toString()
-                                      : new Date().getFullYear().toString()
-                                  }
-                                >
-                                  <SelectTrigger className="w-full">
-                                    <SelectValue placeholder="Année" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {Array.from({ length: 10 }, (_, i) => {
-                                      const year = new Date().getFullYear() + i;
-                                      return (
-                                        <SelectItem key={year} value={year.toString()}>
-                                          {year}
-                                        </SelectItem>
-                                      );
-                                    })}
-                                  </SelectContent>
-                                </Select>
+                          {field.value ? (
+                            format(field.value, 'PPP', { locale: fr })
+                          ) : (
+                            <span>Sélectionner une date de fin</span>
+                          )}
+                        </Button>
+                      </FormControl>
+                      <Dialog open={endDatePickerOpen} onOpenChange={setEndDatePickerOpen}>
+                        <DialogContent className="sm:max-w-[425px] p-0">
+                          <DialogHeader className="px-4 pt-4 pb-2">
+                            <DialogTitle>Sélectionner une date de fin</DialogTitle>
+                          </DialogHeader>
+                          <div className="px-4 pb-4">
+                            <div className="p-3 border-b">
+                              <div className="flex justify-between items-center mb-2">
+                                <h4 className="font-medium">Sélection rapide</h4>
                               </div>
-                              <div>
-                                <label className="text-sm font-medium mb-1 block">Mois</label>
-                                <Select
-                                  onValueChange={value => {
-                                    const newDate = new Date(field.value || new Date());
-                                    newDate.setMonth(parseInt(value));
-                                    field.onChange(newDate);
-                                  }}
-                                  defaultValue={
-                                    field.value
-                                      ? field.value.getMonth().toString()
-                                      : new Date().getMonth().toString()
-                                  }
-                                >
-                                  <SelectTrigger className="w-full">
-                                    <SelectValue placeholder="Mois" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {Array.from({ length: 12 }, (_, i) => {
-                                      const date = new Date(2000, i, 1);
-                                      return (
-                                        <SelectItem key={i} value={i.toString()}>
-                                          {format(date, 'MMMM', { locale: fr })}
-                                        </SelectItem>
-                                      );
-                                    })}
-                                  </SelectContent>
-                                </Select>
+                              <div className="grid grid-cols-3 gap-2 mb-3">
+                                <div>
+                                  <label className="text-sm font-medium mb-1 block">Année</label>
+                                  <Select
+                                    onValueChange={value => {
+                                      const newDate = new Date(field.value || new Date());
+                                      newDate.setFullYear(parseInt(value));
+                                      field.onChange(newDate);
+                                    }}
+                                    defaultValue={
+                                      field.value
+                                        ? field.value.getFullYear().toString()
+                                        : new Date().getFullYear().toString()
+                                    }
+                                  >
+                                    <SelectTrigger className="w-full">
+                                      <SelectValue placeholder="Année" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {Array.from({ length: 10 }, (_, i) => {
+                                        const year = new Date().getFullYear() + i;
+                                        return (
+                                          <SelectItem key={year} value={year.toString()}>
+                                            {year}
+                                          </SelectItem>
+                                        );
+                                      })}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium mb-1 block">Mois</label>
+                                  <Select
+                                    onValueChange={value => {
+                                      const newDate = new Date(field.value || new Date());
+                                      newDate.setMonth(parseInt(value));
+                                      field.onChange(newDate);
+                                    }}
+                                    defaultValue={
+                                      field.value
+                                        ? field.value.getMonth().toString()
+                                        : new Date().getMonth().toString()
+                                    }
+                                  >
+                                    <SelectTrigger className="w-full">
+                                      <SelectValue placeholder="Mois" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {Array.from({ length: 12 }, (_, i) => {
+                                        const date = new Date(2000, i, 1);
+                                        return (
+                                          <SelectItem key={i} value={i.toString()}>
+                                            {format(date, 'MMMM', { locale: fr })}
+                                          </SelectItem>
+                                        );
+                                      })}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium mb-1 block">Jour</label>
+                                  <Select
+                                    onValueChange={value => {
+                                      const newDate = new Date(field.value || new Date());
+                                      newDate.setDate(parseInt(value));
+                                      field.onChange(newDate);
+                                    }}
+                                    defaultValue={
+                                      field.value
+                                        ? field.value.getDate().toString()
+                                        : new Date().getDate().toString()
+                                    }
+                                  >
+                                    <SelectTrigger className="w-full">
+                                      <SelectValue placeholder="Jour" />
+                                    </SelectTrigger>
+                                    <SelectContent className="h-[200px]">
+                                      {Array.from({ length: 31 }, (_, i) => {
+                                        const day = i + 1;
+                                        return (
+                                          <SelectItem key={day} value={day.toString()}>
+                                            {day}
+                                          </SelectItem>
+                                        );
+                                      })}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
                               </div>
-                              <div>
-                                <label className="text-sm font-medium mb-1 block">Jour</label>
-                                <Select
-                                  onValueChange={value => {
-                                    const newDate = new Date(field.value || new Date());
-                                    newDate.setDate(parseInt(value));
-                                    field.onChange(newDate);
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const today = new Date();
+                                    const futureDate = new Date(today);
+                                    futureDate.setFullYear(today.getFullYear() + 1);
+                                    field.onChange(futureDate);
+                                    setEndDatePickerOpen(false);
                                   }}
-                                  defaultValue={
-                                    field.value
-                                      ? field.value.getDate().toString()
-                                      : new Date().getDate().toString()
-                                  }
                                 >
-                                  <SelectTrigger className="w-full">
-                                    <SelectValue placeholder="Jour" />
-                                  </SelectTrigger>
-                                  <SelectContent className="h-[200px]">
-                                    {Array.from({ length: 31 }, (_, i) => {
-                                      const day = i + 1;
-                                      return (
-                                        <SelectItem key={day} value={day.toString()}>
-                                          {day}
-                                        </SelectItem>
-                                      );
-                                    })}
-                                  </SelectContent>
-                                </Select>
+                                  + 1 an
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const today = new Date();
+                                    const futureDate = new Date(today);
+                                    futureDate.setFullYear(today.getFullYear() + 2);
+                                    field.onChange(futureDate);
+                                    setEndDatePickerOpen(false);
+                                  }}
+                                >
+                                  + 2 ans
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const today = new Date();
+                                    const futureDate = new Date(today);
+                                    futureDate.setFullYear(today.getFullYear() + 5);
+                                    field.onChange(futureDate);
+                                    setEndDatePickerOpen(false);
+                                  }}
+                                >
+                                  + 5 ans
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const today = new Date();
+                                    const futureDate = new Date(today);
+                                    futureDate.setMonth(today.getMonth() + 6);
+                                    field.onChange(futureDate);
+                                    setEndDatePickerOpen(false);
+                                  }}
+                                >
+                                  + 6 mois
+                                </Button>
                               </div>
                             </div>
-                            <div className="flex flex-wrap gap-2">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  const today = new Date();
-                                  const futureDate = new Date(today);
-                                  futureDate.setFullYear(today.getFullYear() + 1);
-                                  field.onChange(futureDate);
-                                }}
-                              >
-                                + 1 an
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  const today = new Date();
-                                  const futureDate = new Date(today);
-                                  futureDate.setFullYear(today.getFullYear() + 2);
-                                  field.onChange(futureDate);
-                                }}
-                              >
-                                + 2 ans
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  const today = new Date();
-                                  const futureDate = new Date(today);
-                                  futureDate.setFullYear(today.getFullYear() + 5);
-                                  field.onChange(futureDate);
-                                }}
-                              >
-                                + 5 ans
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  const today = new Date();
-                                  const futureDate = new Date(today);
-                                  futureDate.setMonth(today.getMonth() + 6);
-                                  field.onChange(futureDate);
-                                }}
-                              >
-                                + 6 mois
-                              </Button>
-                            </div>
+                            <Calendar
+                              mode="single"
+                              selected={field.value}
+                              onSelect={date => {
+                                field.onChange(date);
+                                setEndDatePickerOpen(false);
+                              }}
+                              initialFocus
+                              disabled={date => date < new Date()}
+                              className="mx-auto"
+                            />
                           </div>
-                          <Calendar
-                            mode="single"
-                            selected={field.value}
-                            onSelect={field.onChange}
-                            initialFocus
-                            disabled={date => date < new Date()}
-                          />
-                        </PopoverContent>
-                      </Popover>
+                        </DialogContent>
+                      </Dialog>
                       <FormDescription>Laissez vide pour une récurrence sans fin</FormDescription>
                       <FormMessage />
                     </FormItem>
