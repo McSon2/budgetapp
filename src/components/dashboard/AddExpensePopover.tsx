@@ -2,7 +2,7 @@
 
 import { useDashboard } from '@/components/providers/MonthProvider';
 import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
+import { DateTimePicker } from '@/components/ui/date-time-picker';
 import {
   Form,
   FormControl,
@@ -23,10 +23,8 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Category } from '@/lib/services/categories-service';
-import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { PlusIcon } from '@radix-ui/react-icons';
-import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -249,38 +247,18 @@ export function AddExpensePopover() {
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel className="text-sm">Date</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant={'outline'}
-                            className={cn(
-                              'w-full pl-3 text-left font-normal',
-                              !field.value && 'text-muted-foreground'
-                            )}
-                          >
-                            {field.value ? (
-                              format(field.value, 'PPP', { locale: fr })
-                            ) : (
-                              <span>Sélectionner une date</span>
-                            )}
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent
-                        className="w-auto p-0 border-2 shadow-lg backdrop-blur-sm bg-background/95 rounded-xl"
-                        align="start"
-                        side="bottom"
-                        avoidCollisions={true}
-                      >
-                        <Calendar
-                          mode="single"
-                          selected={field.value}
-                          onSelect={field.onChange}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
+                    <FormControl>
+                      <DateTimePicker
+                        value={field.value}
+                        onChange={field.onChange}
+                        locale={fr}
+                        granularity="day"
+                        displayFormat={{
+                          hour24: 'PPP',
+                        }}
+                        placeholder="Sélectionner une date"
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -379,39 +357,18 @@ export function AddExpensePopover() {
                     render={({ field }) => (
                       <FormItem className="flex flex-col">
                         <FormLabel>Date de fin (optionnelle)</FormLabel>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                variant={'outline'}
-                                className={cn(
-                                  'w-full pl-3 text-left font-normal',
-                                  !field.value && 'text-muted-foreground'
-                                )}
-                              >
-                                {field.value ? (
-                                  format(field.value, 'PPP', { locale: fr })
-                                ) : (
-                                  <span>Sélectionner une date de fin</span>
-                                )}
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent
-                            className="w-auto p-0 border-2 shadow-lg backdrop-blur-sm bg-background/95 rounded-xl"
-                            align="start"
-                            side="bottom"
-                            avoidCollisions={true}
-                          >
-                            <Calendar
-                              mode="single"
-                              selected={field.value}
-                              onSelect={field.onChange}
-                              initialFocus
-                              disabled={date => date < new Date()}
-                            />
-                          </PopoverContent>
-                        </Popover>
+                        <FormControl>
+                          <DateTimePicker
+                            value={field.value}
+                            onChange={field.onChange}
+                            locale={fr}
+                            granularity="day"
+                            displayFormat={{
+                              hour24: 'PPP',
+                            }}
+                            placeholder="Sélectionner une date de fin"
+                          />
+                        </FormControl>
                         <FormDescription>Laissez vide pour une récurrence sans fin</FormDescription>
                         <FormMessage />
                       </FormItem>
