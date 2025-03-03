@@ -67,18 +67,6 @@ export async function getDashboardData(
   const today = new Date();
   today.setUTCHours(0, 0, 0, 0);
 
-  // MODIFICATION IMPORTANTE: Pour les besoins de test avec des dates futures,
-  // nous allons considérer que nous sommes au dernier jour du mois sélectionné
-  // Cela permettra d'inclure toutes les transactions du mois dans le calcul du solde
-
-  // Calculer le dernier jour du mois sélectionné
-  const year = startDate.getUTCFullYear();
-  const month = startDate.getUTCMonth();
-  const lastDayOfMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-
-  // Créer une date simulée au dernier jour du mois
-  const simulatedToday = new Date(Date.UTC(year, month, lastDayOfMonth, 23, 59, 59, 999));
-
   // Déterminer si le mois sélectionné est le mois courant
   // Utiliser la date réelle pour cette détermination
   const isCurrentMonth =
@@ -97,12 +85,11 @@ export async function getDashboardData(
     (startDate.getUTCFullYear() === today.getUTCFullYear() &&
       startDate.getUTCMonth() > today.getUTCMonth());
 
-  // Date limite pour le calcul du solde actuel
-  // MODIFICATION: Pour les mois futurs ou le mois courant, utiliser la date simulée (dernier jour du mois)
-  // pour inclure toutes les transactions du mois
-  const currentBalanceEndDate = isCurrentMonth || isFutureMonth ? simulatedToday : endDate;
+  // CORRECTION: Le solde actuel doit toujours être calculé avec toutes les transactions jusqu'à la date actuelle
+  // indépendamment du mois sélectionné
+  const currentBalanceEndDate = today;
 
-  // Récupérer toutes les dépenses de l'utilisateur jusqu'à la date limite
+  // Récupérer toutes les dépenses de l'utilisateur jusqu'à la date actuelle
   const expenses = await prisma.expense.findMany({
     where: {
       userId,
@@ -116,7 +103,7 @@ export async function getDashboardData(
     },
   });
 
-  // Calculer le solde actuel (toutes les dépenses jusqu'à la date limite)
+  // Calculer le solde actuel (toutes les dépenses jusqu'à la date actuelle)
   const currentBalance = expenses.reduce((acc, expense) => acc + expense.amount, 0);
 
   // Récupérer les dépenses du mois sélectionné
@@ -168,47 +155,29 @@ export async function getDashboardData(
   // Si c'est le mois courant ou un mois futur, calculer le solde de fin de mois
   if (isCurrentMonth || isFutureMonth) {
     // Pour les mois futurs ou le mois courant, le solde de fin de mois doit inclure toutes les transactions du mois
-    // Vérifier si toutes les transactions du mois sont déjà incluses dans le solde actuel
-    if (currentBalanceEndDate.getTime() === endDate.getTime()) {
-      // Le solde de fin de mois est déjà correct (égal au solde actuel)
-    } else {
-      // Sinon, ajouter les transactions manquantes (celles après la date simulée jusqu'à la fin du mois)
-      const futureExpenses = filteredMonthExpenses
-        .filter(expense => {
-          const expenseDate = new Date(expense.date);
-          // Comparer les dates pour trouver les transactions après la date simulée
-          return isAfter(expenseDate, currentBalanceEndDate);
-        })
-        .reduce((acc, expense) => acc + expense.amount, 0);
-      filteredMonthExpenses.filter(expense => {
+    // qui ne sont pas déjà incluses dans le solde actuel (celles après la date actuelle jusqu'à la fin du mois)
+    const futureExpenses = filteredMonthExpenses
+      .filter(expense => {
         const expenseDate = new Date(expense.date);
+        // Comparer les dates pour trouver les transactions après la date actuelle
         return isAfter(expenseDate, currentBalanceEndDate);
-      });
+      })
+      .reduce((acc, expense) => acc + expense.amount, 0);
 
-      endOfMonthBalance += futureExpenses;
-    }
+    endOfMonthBalance += futureExpenses;
   }
-  // Si c'est un mois passé, vérifier si toutes les transactions du mois sont incluses
+  // Si c'est un mois passé, le solde de fin de mois doit être calculé différemment
   else if (isPastMonth) {
-    // Pour un mois passé, le solde de fin de mois devrait inclure toutes les transactions du mois
-    // Vérifier si toutes les transactions du mois sont déjà incluses dans le solde actuel
-    if (currentBalanceEndDate.getTime() === endDate.getTime()) {
-      // Le solde de fin de mois est déjà correct (égal au solde actuel)
-    } else {
-      // Sinon, ajouter les transactions manquantes
-      const missingTransactions = filteredMonthExpenses
-        .filter(expense => {
-          const expenseDate = new Date(expense.date);
-          return isAfter(expenseDate, currentBalanceEndDate) && !isAfter(expenseDate, endDate);
-        })
-        .reduce((acc, expense) => acc + expense.amount, 0);
-      filteredMonthExpenses.filter(expense => {
+    // Pour un mois passé, le solde de fin de mois doit être le solde actuel moins les transactions
+    // qui ont eu lieu après la fin du mois sélectionné jusqu'à aujourd'hui
+    const transactionsAfterSelectedMonth = expenses
+      .filter(expense => {
         const expenseDate = new Date(expense.date);
-        return isAfter(expenseDate, currentBalanceEndDate) && !isAfter(expenseDate, endDate);
-      });
+        return isAfter(expenseDate, endDate) && !isAfter(expenseDate, currentBalanceEndDate);
+      })
+      .reduce((acc, expense) => acc + expense.amount, 0);
 
-      endOfMonthBalance += missingTransactions;
-    }
+    endOfMonthBalance -= transactionsAfterSelectedMonth;
   }
 
   // Récupérer les dépenses récurrentes
