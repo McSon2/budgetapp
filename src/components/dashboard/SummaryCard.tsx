@@ -11,30 +11,47 @@ interface SummaryCardProps {
   currency?: string;
 }
 
-export function SummaryCard({ income: propIncome, currency = '€' }: SummaryCardProps = {}) {
+export function SummaryCard({
+  income: propIncome,
+  expenses: propExpenses,
+  currency = '€',
+}: SummaryCardProps = {}) {
   // Utiliser les données du contexte ou les props si fournies
   const dashboardData = useDashboard();
 
   // Récupérer les données du dashboard
   const income = propIncome !== undefined ? propIncome : dashboardData.income;
-  const endOfMonthBalance = dashboardData.endOfMonthBalance;
+
+  // Calculer le montant total des dépenses, incluant les récurrentes
+  // Nous devons calculer cela ici puisque le dashboard service n'inclut pas les dépenses récurrentes
+  // dans la propriété 'expenses'
+
+  // 1. Les dépenses normales déjà dans le dashboard
+  const regularExpenses = propExpenses !== undefined ? propExpenses : dashboardData.expenses;
+
+  // 2. Calculer les dépenses récurrentes pour le mois actuel
+  let recurringExpensesAmount = 0;
+
+  // Si des dépenses récurrentes sont disponibles, les inclure dans le total
+  if (dashboardData.recurringExpenses && dashboardData.recurringExpenses.length > 0) {
+    // Nous considérons uniquement les montants négatifs des dépenses récurrentes
+    recurringExpensesAmount = dashboardData.recurringExpenses
+      .filter(expense => expense.amount < 0)
+      .reduce((total, expense) => total + expense.amount, 0);
+  }
+
+  // Le total des dépenses inclut les régulières et les récurrentes
+  const totalExpenses = regularExpenses + recurringExpensesAmount;
 
   // Formater le mois pour l'affichage
   const formattedMonth = format(dashboardData.selectedMonth, 'MMMM yyyy', { locale: fr });
 
-  // Pour que le total corresponde au solde de fin de mois (-252,55 €),
-  // nous conservons les entrées telles quelles et ajustons les sorties
-  const adjustedIncome = income;
-
-  // Calculer les sorties ajustées pour que le total soit égal au solde de fin de mois
-  const adjustedExpenses = endOfMonthBalance - adjustedIncome;
-
   // S'assurer que les valeurs sont positives pour l'affichage
-  const positiveIncome = Math.abs(adjustedIncome);
-  const positiveExpenses = Math.abs(adjustedExpenses);
+  const positiveIncome = Math.abs(income);
+  const positiveExpenses = Math.abs(totalExpenses);
 
-  // Le total est égal au solde de fin de mois
-  const total = adjustedIncome + adjustedExpenses;
+  // Le total représente la somme des entrées et sorties
+  const total = income + totalExpenses;
 
   return (
     <Card className="h-full">
