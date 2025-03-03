@@ -14,35 +14,44 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
 
-    if (startDate && endDate) {
-      // Vérifier le format des dates
-      const startDateObj = new Date(startDate);
-      const endDateObj = new Date(endDate);
-
-      // Vérifier que les dates sont valides
-      if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
-        console.error('API: Dates invalides:', startDate, endDate);
-        return NextResponse.json({ error: 'Invalid date format' }, { status: 400 });
-      }
-
-      // Vérifier que la date de début est avant la date de fin
-      if (startDateObj > endDateObj) {
-        console.error('API: La date de début est après la date de fin:', startDate, endDate);
-        return NextResponse.json({ error: 'Start date must be before end date' }, { status: 400 });
-      }
-
-      // Vérifier que les dates correspondent au même mois
-      if (
-        startDateObj.getUTCFullYear() !== endDateObj.getUTCFullYear() ||
-        startDateObj.getUTCMonth() !== endDateObj.getUTCMonth()
-      ) {
-        console.warn('API: Les dates ne correspondent pas au même mois:', startDate, endDate);
-      }
+    if (!startDate) {
+      return NextResponse.json({ error: 'Start date is required' }, { status: 400 });
     }
 
-    const expenses = await getExpenses(userId, startDate || undefined, endDate || undefined);
+    // Vérifier le format des dates
+    const startDateObj = new Date(startDate);
+    const endDateObj = endDate ? new Date(endDate) : new Date(startDate);
 
-    return NextResponse.json(expenses);
+    // Vérifier que les dates sont valides
+    if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
+      console.error('API: Dates invalides:', startDate, endDate);
+      return NextResponse.json({ error: 'Invalid date format' }, { status: 400 });
+    }
+
+    // Vérifier que la date de début est avant la date de fin
+    if (startDateObj > endDateObj) {
+      console.error('API: La date de début est après la date de fin:', startDate, endDate);
+      return NextResponse.json({ error: 'Start date must be before end date' }, { status: 400 });
+    }
+
+    // Vérifier que les dates correspondent au même mois
+    if (
+      startDateObj.getFullYear() !== endDateObj.getFullYear() ||
+      startDateObj.getMonth() !== endDateObj.getMonth()
+    ) {
+      console.warn('API: Les dates ne correspondent pas au même mois:', startDate, endDate);
+    }
+
+    // Extraire le mois et l'année de la date de début (utiliser les méthodes locales)
+    const requestedMonth = startDateObj.getMonth() + 1; // 1-12 (janvier = 1)
+    const requestedYear = startDateObj.getFullYear();
+
+    console.log(`API: Récupération des dépenses pour le mois ${requestedMonth}/${requestedYear}`);
+
+    // Utiliser la nouvelle signature de getExpenses qui prend le mois comme paramètre
+    const result = await getExpenses(userId, startDate);
+
+    return NextResponse.json(result.expenses);
   } catch (error) {
     console.error('API Error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

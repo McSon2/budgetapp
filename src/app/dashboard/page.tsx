@@ -2,7 +2,7 @@ import { ActionButtons } from '@/components/dashboard/ActionButtons';
 import { BalanceCard } from '@/components/dashboard/BalanceCard';
 import { CategoryExpensesCard } from '@/components/dashboard/CategoryExpensesCard';
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
-import { ExpensesList } from '@/components/dashboard/ExpensesList';
+import { ExpensesList } from '@/components/dashboard/expenses';
 import { RecurringExpensesCard } from '@/components/dashboard/RecurringExpensesCard';
 import { SummaryCard } from '@/components/dashboard/SummaryCard';
 import { MonthProvider } from '@/components/providers/MonthProvider';

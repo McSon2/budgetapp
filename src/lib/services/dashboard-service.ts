@@ -23,29 +23,29 @@ export interface DashboardData {
   selectedMonth: Date;
 }
 
-// Fonction utilitaire pour normaliser une date au début du mois en UTC
+// Fonction utilitaire pour normaliser une date au début du mois
 const normalizeToStartOfMonth = (date: Date | string): Date => {
   const dateObj = typeof date === 'string' ? new Date(date) : date;
   const normalized = new Date(dateObj);
-  normalized.setUTCDate(1);
-  normalized.setUTCHours(0, 0, 0, 0);
+  normalized.setDate(1);
+  normalized.setHours(0, 0, 0, 0);
   return normalized;
 };
 
-// Fonction utilitaire pour normaliser une date à la fin du mois en UTC
+// Fonction utilitaire pour normaliser une date à la fin du mois
 const normalizeToEndOfMonth = (date: Date | string): Date => {
   const dateObj = typeof date === 'string' ? new Date(date) : date;
 
   // Extraire l'année et le mois
-  const year = dateObj.getUTCFullYear();
-  const month = dateObj.getUTCMonth();
+  const year = dateObj.getFullYear();
+  const month = dateObj.getMonth();
 
   // Calculer le dernier jour du mois en créant une date au jour 0 du mois suivant
   // (ce qui équivaut au dernier jour du mois actuel)
-  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  const lastDay = new Date(year, month + 1, 0).getDate();
 
   // Créer une nouvelle date au dernier jour du mois à 23:59:59.999
-  const normalized = new Date(Date.UTC(year, month, lastDay, 23, 59, 59, 999));
+  const normalized = new Date(year, month, lastDay, 23, 59, 59, 999);
 
   return normalized;
 };
@@ -65,29 +65,32 @@ export async function getDashboardData(
 
   // Obtenir la date actuelle en UTC
   const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
 
   // Déterminer si le mois sélectionné est le mois courant
   // Utiliser la date réelle pour cette détermination
   const isCurrentMonth =
-    today.getUTCFullYear() === startDate.getUTCFullYear() &&
-    today.getUTCMonth() === startDate.getUTCMonth();
+    today.getFullYear() === startDate.getFullYear() && today.getMonth() === startDate.getMonth();
 
   // Déterminer si le mois sélectionné est un mois passé
   const isPastMonth =
-    startDate.getUTCFullYear() < today.getUTCFullYear() ||
-    (startDate.getUTCFullYear() === today.getUTCFullYear() &&
-      startDate.getUTCMonth() < today.getUTCMonth());
+    startDate.getFullYear() < today.getFullYear() ||
+    (startDate.getFullYear() === today.getFullYear() && startDate.getMonth() < today.getMonth());
 
   // Déterminer si le mois sélectionné est un mois futur
   const isFutureMonth =
-    startDate.getUTCFullYear() > today.getUTCFullYear() ||
-    (startDate.getUTCFullYear() === today.getUTCFullYear() &&
-      startDate.getUTCMonth() > today.getUTCMonth());
+    startDate.getFullYear() > today.getFullYear() ||
+    (startDate.getFullYear() === today.getFullYear() && startDate.getMonth() > today.getMonth());
 
   // CORRECTION: Le solde actuel doit toujours être calculé avec toutes les transactions jusqu'à la date actuelle
   // indépendamment du mois sélectionné
-  const currentBalanceEndDate = today;
+  // Définir currentBalanceEndDate comme la fin de la journée actuelle (23:59:59.999)
+  // pour inclure toutes les transactions du jour même
+  const currentBalanceEndDate = new Date();
+  currentBalanceEndDate.setHours(23, 59, 59, 999);
+
+  // Variable pour stocker le montant des récurrences futures
+  let generatedFutureAmount = 0;
 
   // Récupérer toutes les dépenses de l'utilisateur jusqu'à la date actuelle
   const expenses = await prisma.expense.findMany({
@@ -124,16 +127,16 @@ export async function getDashboardData(
   // Vérifier et filtrer les dépenses pour s'assurer qu'elles sont bien dans le mois sélectionné
   const filteredMonthExpenses = monthExpenses.filter(expense => {
     const expenseDate = new Date(expense.date);
-    const expenseMonth = expenseDate.getUTCMonth();
-    const expenseYear = expenseDate.getUTCFullYear();
+    const expenseMonth = expenseDate.getMonth();
+    const expenseYear = expenseDate.getFullYear();
 
     // Vérifier si la transaction est du mois sélectionné
     const isInSelectedMonth =
-      expenseMonth === startDate.getUTCMonth() && expenseYear === startDate.getUTCFullYear();
+      expenseMonth === startDate.getMonth() && expenseYear === startDate.getFullYear();
 
     if (!isInSelectedMonth) {
       console.warn(
-        `Dashboard: Transaction hors du mois sélectionné filtrée: ${expense.description}, Date: ${expense.date.toISOString()}, Mois attendu: ${startDate.getUTCMonth() + 1}/${startDate.getUTCFullYear()}, Mois réel: ${expenseMonth + 1}/${expenseYear}`
+        `Dashboard: Transaction hors du mois sélectionné filtrée: ${expense.description}, Date: ${expense.date.toISOString()}, Mois attendu: ${startDate.getMonth() + 1}/${startDate.getFullYear()}, Mois réel: ${expenseMonth + 1}/${expenseYear}`
       );
     }
 
@@ -152,9 +155,9 @@ export async function getDashboardData(
   // Initialiser le solde de fin de mois
   let endOfMonthBalance = currentBalance;
 
-  // Si c'est le mois courant ou un mois futur, calculer le solde de fin de mois
-  if (isCurrentMonth || isFutureMonth) {
-    // Pour les mois futurs ou le mois courant, le solde de fin de mois doit inclure toutes les transactions du mois
+  // Si c'est le mois courant, calculer le solde de fin de mois
+  if (isCurrentMonth) {
+    // Pour le mois courant, le solde de fin de mois doit inclure toutes les transactions du mois
     // qui ne sont pas déjà incluses dans le solde actuel (celles après la date actuelle jusqu'à la fin du mois)
     const futureExpenses = filteredMonthExpenses
       .filter(expense => {
@@ -164,7 +167,145 @@ export async function getDashboardData(
       })
       .reduce((acc, expense) => acc + expense.amount, 0);
 
+    console.log(`[DEBUG DASHBOARD] Dépenses futures du mois courant: ${futureExpenses}`);
+    console.log(`[DEBUG DASHBOARD] Nombre de dépenses filtrées: ${filteredMonthExpenses.length}`);
+
     endOfMonthBalance += futureExpenses;
+  }
+  // Si c'est un mois futur, calculer le solde de fin de mois différemment
+  else if (isFutureMonth) {
+    // Pour un mois futur, nous devons partir du solde actuel et soustraire toutes les dépenses futures
+    // et récurrences jusqu'à la fin du mois sélectionné
+
+    // 1. Partir du solde actuel
+    endOfMonthBalance = currentBalance;
+    console.log(
+      `[DEBUG DASHBOARD] Calcul pour mois futur - Solde actuel de départ: ${endOfMonthBalance}`
+    );
+
+    // 2. Récupérer toutes les dépenses non récurrentes entre aujourd'hui et la fin du mois sélectionné
+    const futureExpensesUntilEndOfSelectedMonth = await prisma.expense.findMany({
+      where: {
+        userId,
+        date: {
+          gt: today,
+          lte: endDate,
+        },
+        isRecurring: false,
+      },
+      include: {
+        category: true,
+      },
+    });
+
+    // Calculer le montant total de ces dépenses
+    const futureExpensesAmount = futureExpensesUntilEndOfSelectedMonth.reduce(
+      (acc, expense) => acc + expense.amount,
+      0
+    );
+
+    console.log(
+      `[DEBUG DASHBOARD] Dépenses futures jusqu'à la fin du mois sélectionné: ${futureExpensesAmount}`
+    );
+    console.log(
+      `[DEBUG DASHBOARD] Nombre de dépenses futures: ${futureExpensesUntilEndOfSelectedMonth.length}`
+    );
+
+    // Ajouter ces dépenses au solde (les montants négatifs seront soustraits)
+    endOfMonthBalance += futureExpensesAmount;
+    console.log(`[DEBUG DASHBOARD] Solde après dépenses futures: ${endOfMonthBalance}`);
+
+    // 3. Calculer les récurrences pour tous les mois entre aujourd'hui et le mois sélectionné inclus
+    // Déterminer le nombre de mois entre aujourd'hui et le mois sélectionné
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+    const selectedMonth = startDate.getMonth();
+    const selectedYear = startDate.getFullYear();
+
+    // Calculer le nombre de mois entre les deux dates
+    const monthDiff = (selectedYear - currentYear) * 12 + (selectedMonth - currentMonth);
+    console.log(`[DEBUG DASHBOARD] Différence de mois: ${monthDiff}`);
+
+    // Pour chaque mois entre aujourd'hui et le mois sélectionné (inclus)
+    let totalRecurringAmount = 0;
+
+    // Simplification: traiter tous les mois entre aujourd'hui et le mois sélectionné
+    for (let i = 0; i <= monthDiff; i++) {
+      // Calculer le mois à traiter
+      const targetDate = new Date(today);
+      targetDate.setMonth(targetDate.getMonth() + i);
+
+      const monthStart = normalizeToStartOfMonth(targetDate);
+      const monthEnd = normalizeToEndOfMonth(targetDate);
+
+      console.log(
+        `[DEBUG DASHBOARD] Traitement du mois ${i}: ${monthStart.toLocaleDateString('fr-FR')} - ${monthEnd.toLocaleDateString('fr-FR')}`
+      );
+
+      // Récupérer les récurrences pour ce mois
+      const monthRecurringExpenses = await prisma.expense
+        .findMany({
+          where: {
+            userId,
+            isRecurring: true,
+          },
+          include: {
+            recurrence: true,
+          },
+        })
+        .then(expenses =>
+          expenses.map(expense => ({
+            id: expense.id,
+            description: expense.description,
+            amount: expense.amount,
+            frequency: expense.recurrence?.frequency || 'monthly',
+            nextDate: expense.recurrence?.startDate || new Date(),
+          }))
+        );
+
+      // Générer les occurrences pour ce mois
+      const monthOccurrences = generateFutureOccurrencesForMonth(
+        monthRecurringExpenses,
+        monthStart,
+        monthEnd
+      );
+
+      console.log(
+        `[DEBUG DASHBOARD] Nombre d'occurrences générées pour le mois ${i}: ${monthOccurrences.length}`
+      );
+
+      // Pour le mois courant, ne prendre que les occurrences futures
+      let monthRecurringAmount = 0;
+
+      if (i === 0) {
+        // Pour le mois courant, ne prendre que les occurrences après aujourd'hui
+        monthRecurringAmount = monthOccurrences
+          .filter(occurrence => isAfter(occurrence.date, today))
+          .reduce((acc, occurrence) => acc + occurrence.amount, 0);
+      } else {
+        // Pour les mois futurs, prendre toutes les occurrences
+        monthRecurringAmount = monthOccurrences.reduce(
+          (acc, occurrence) => acc + occurrence.amount,
+          0
+        );
+      }
+
+      console.log(
+        `[DEBUG DASHBOARD] Montant des récurrences pour le mois ${i}: ${monthRecurringAmount}`
+      );
+
+      // Ajouter au total
+      totalRecurringAmount += monthRecurringAmount;
+    }
+
+    console.log(`[DEBUG DASHBOARD] Montant total des récurrences futures: ${totalRecurringAmount}`);
+
+    // Ajouter les récurrences au solde (les montants négatifs seront soustraits)
+    endOfMonthBalance += totalRecurringAmount;
+    console.log(`[DEBUG DASHBOARD] Solde final après récurrences: ${endOfMonthBalance}`);
+
+    // Stocker le montant des récurrences pour l'affichage
+    generatedFutureAmount = totalRecurringAmount;
   }
   // Si c'est un mois passé, le solde de fin de mois doit être calculé différemment
   else if (isPastMonth) {
@@ -176,6 +317,10 @@ export async function getDashboardData(
         return isAfter(expenseDate, endDate) && !isAfter(expenseDate, currentBalanceEndDate);
       })
       .reduce((acc, expense) => acc + expense.amount, 0);
+
+    console.log(
+      `[DEBUG DASHBOARD] Transactions après le mois sélectionné (passé): ${transactionsAfterSelectedMonth}`
+    );
 
     endOfMonthBalance -= transactionsAfterSelectedMonth;
   }
@@ -201,12 +346,8 @@ export async function getDashboardData(
       }))
     );
 
-  // Générer les occurrences futures des dépenses récurrentes
-  // Modification: générer pour le mois courant ET les mois futurs
-  let generatedFutureAmount = 0;
-
   // Si c'est le mois courant ou un mois futur, générer les occurrences récurrentes
-  if (isCurrentMonth || isFutureMonth) {
+  if (isCurrentMonth) {
     // MODIFICATION: Toujours utiliser le début du mois comme date de départ pour la génération
     // Cela garantit que toutes les dépenses récurrentes du mois sont prises en compte
     const startDateForGeneration = startDate;
@@ -217,29 +358,170 @@ export async function getDashboardData(
       endDate
     );
 
+    console.log(
+      `[DEBUG DASHBOARD] Nombre d'occurrences générées: ${generatedFutureOccurrences.length}`
+    );
+
     // Pour le mois courant, ne compter que les occurrences qui ne sont pas déjà incluses dans le solde actuel
-    if (isCurrentMonth) {
-      // Filtrer les occurrences qui sont après aujourd'hui
-      const futureOccurrences = generatedFutureOccurrences.filter(
-        occurrence => isAfter(occurrence.date, today) && !isSameDay(occurrence.date, today)
+    // Filtrer les occurrences qui sont après aujourd'hui
+    const futureOccurrences = generatedFutureOccurrences.filter(
+      occurrence => isAfter(occurrence.date, today) && !isSameDay(occurrence.date, today)
+    );
+
+    // Calculer le montant total des occurrences futures
+    generatedFutureAmount = futureOccurrences.reduce(
+      (acc, occurrence) => acc + occurrence.amount,
+      0
+    );
+  } else if (isFutureMonth) {
+    // Pour un mois futur, nous devons partir du solde actuel et soustraire toutes les dépenses futures
+    // et récurrences jusqu'à la fin du mois sélectionné
+
+    // 1. Partir du solde actuel
+    endOfMonthBalance = currentBalance;
+    console.log(
+      `[DEBUG DASHBOARD] Calcul pour mois futur - Solde actuel de départ: ${endOfMonthBalance}`
+    );
+
+    // 2. Récupérer toutes les dépenses non récurrentes entre aujourd'hui et la fin du mois sélectionné
+    const futureExpensesUntilEndOfSelectedMonth = await prisma.expense.findMany({
+      where: {
+        userId,
+        date: {
+          gt: today,
+          lte: endDate,
+        },
+        isRecurring: false,
+      },
+      include: {
+        category: true,
+      },
+    });
+
+    // Calculer le montant total de ces dépenses
+    const futureExpensesAmount = futureExpensesUntilEndOfSelectedMonth.reduce(
+      (acc, expense) => acc + expense.amount,
+      0
+    );
+
+    console.log(
+      `[DEBUG DASHBOARD] Dépenses futures jusqu'à la fin du mois sélectionné: ${futureExpensesAmount}`
+    );
+    console.log(
+      `[DEBUG DASHBOARD] Nombre de dépenses futures: ${futureExpensesUntilEndOfSelectedMonth.length}`
+    );
+
+    // Soustraire ces dépenses du solde
+    endOfMonthBalance += futureExpensesAmount;
+    console.log(`[DEBUG DASHBOARD] Solde après dépenses futures: ${endOfMonthBalance}`);
+
+    // 3. Récupérer et calculer les récurrences pour tous les mois entre aujourd'hui et le mois sélectionné
+    // Déterminer le nombre de mois entre aujourd'hui et le mois sélectionné
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+    const selectedMonth = startDate.getMonth();
+    const selectedYear = startDate.getFullYear();
+
+    // Calculer le nombre de mois entre les deux dates
+    const monthDiff = (selectedYear - currentYear) * 12 + (selectedMonth - currentMonth);
+    console.log(`[DEBUG DASHBOARD] Différence de mois: ${monthDiff}`);
+
+    // Pour chaque mois entre aujourd'hui et le mois sélectionné (inclus)
+    let totalRecurringAmount = 0;
+
+    for (let i = 0; i <= monthDiff; i++) {
+      // Calculer le mois à traiter
+      const targetDate = new Date(today);
+      targetDate.setMonth(targetDate.getMonth() + i);
+
+      const monthStart = normalizeToStartOfMonth(targetDate);
+      const monthEnd = normalizeToEndOfMonth(targetDate);
+
+      console.log(
+        `[DEBUG DASHBOARD] Traitement du mois ${i}: ${monthStart.toLocaleDateString('fr-FR')} - ${monthEnd.toLocaleDateString('fr-FR')}`
       );
 
-      // Calculer le montant total des occurrences futures
-      generatedFutureAmount = futureOccurrences.reduce(
-        (acc, occurrence) => acc + occurrence.amount,
-        0
+      // Récupérer les récurrences pour ce mois
+      const monthRecurringExpenses = await prisma.expense
+        .findMany({
+          where: {
+            userId,
+            isRecurring: true,
+          },
+          include: {
+            recurrence: true,
+          },
+        })
+        .then(expenses =>
+          expenses.map(expense => ({
+            id: expense.id,
+            description: expense.description,
+            amount: expense.amount,
+            frequency: expense.recurrence?.frequency || 'monthly',
+            nextDate: expense.recurrence?.startDate || new Date(),
+          }))
+        );
+
+      // Générer les occurrences pour ce mois
+      const monthOccurrences = generateFutureOccurrencesForMonth(
+        monthRecurringExpenses,
+        monthStart,
+        monthEnd
       );
-    } else {
-      // Pour un mois futur, compter toutes les occurrences
-      generatedFutureAmount = generatedFutureOccurrences.reduce(
-        (acc, occurrence) => acc + occurrence.amount,
-        0
+
+      console.log(
+        `[DEBUG DASHBOARD] Nombre d'occurrences générées pour le mois ${i}: ${monthOccurrences.length}`
       );
+
+      // Pour le mois courant, ne prendre que les occurrences futures
+      let monthRecurringAmount = 0;
+
+      if (i === 0) {
+        // Pour le mois courant, ne prendre que les occurrences après aujourd'hui
+        monthRecurringAmount = monthOccurrences
+          .filter(occurrence => isAfter(occurrence.date, today))
+          .reduce((acc, occurrence) => acc + occurrence.amount, 0);
+      } else {
+        // Pour les mois futurs, prendre toutes les occurrences
+        monthRecurringAmount = monthOccurrences.reduce(
+          (acc, occurrence) => acc + occurrence.amount,
+          0
+        );
+      }
+
+      console.log(
+        `[DEBUG DASHBOARD] Montant des récurrences pour le mois ${i}: ${monthRecurringAmount}`
+      );
+
+      // Ajouter au total
+      totalRecurringAmount += monthRecurringAmount;
     }
+
+    console.log(`[DEBUG DASHBOARD] Montant total des récurrences futures: ${totalRecurringAmount}`);
+
+    // Ajouter les récurrences au solde
+    endOfMonthBalance += totalRecurringAmount;
+    console.log(`[DEBUG DASHBOARD] Solde final après récurrences: ${endOfMonthBalance}`);
+
+    // Stocker le montant des récurrences pour l'affichage
+    generatedFutureAmount = totalRecurringAmount;
   }
 
   // Ajouter les occurrences futures générées au solde de fin de mois
   const endOfMonthBalanceWithRecurring = endOfMonthBalance + generatedFutureAmount;
+
+  console.log(
+    `[DEBUG DASHBOARD] Calcul du solde pour ${normalizedDate.toLocaleDateString('fr-FR')}`
+  );
+  console.log(`[DEBUG DASHBOARD] Solde actuel: ${currentBalance}`);
+  console.log(`[DEBUG DASHBOARD] Solde de fin de mois (sans récurrences): ${endOfMonthBalance}`);
+  console.log(`[DEBUG DASHBOARD] Montant des récurrences futures: ${generatedFutureAmount}`);
+  console.log(
+    `[DEBUG DASHBOARD] Solde de fin de mois (avec récurrences): ${endOfMonthBalanceWithRecurring}`
+  );
+  console.log(
+    `[DEBUG DASHBOARD] Type de mois: ${isCurrentMonth ? 'Courant' : isFutureMonth ? 'Futur' : 'Passé'}`
+  );
 
   // Calculer les dépenses par catégorie
   const categoryExpensesMap = new Map<string, { name: string; amount: number; color: string }>();
@@ -266,9 +548,13 @@ export async function getDashboardData(
     ...category,
   }));
 
+  // CORRECTION: Pour les mois futurs, utiliser directement endOfMonthBalance comme solde final
+  // car il inclut déjà les récurrences futures
+  const finalEndOfMonthBalance = isFutureMonth ? endOfMonthBalance : endOfMonthBalanceWithRecurring;
+
   return {
     currentBalance,
-    endOfMonthBalance: endOfMonthBalanceWithRecurring,
+    endOfMonthBalance: finalEndOfMonthBalance,
     income: monthlyIncomeTotal,
     expenses: monthlyExpensesTotal,
     recurringExpenses: recurringExpenses,
@@ -294,8 +580,18 @@ function generateFutureOccurrencesForMonth(
   const occurrences: { description: string; amount: number; date: Date }[] = [];
 
   // Extraire le mois et l'année de la date de fin (qui correspond au mois sélectionné)
-  const targetMonth = endDate.getUTCMonth();
-  const targetYear = endDate.getUTCFullYear();
+  const targetMonth = endDate.getMonth();
+  const targetYear = endDate.getFullYear();
+
+  console.log(
+    `[DEBUG RECURRING] Génération des dépenses récurrentes pour le mois ${targetMonth + 1}/${targetYear}`
+  );
+  console.log(
+    `[DEBUG RECURRING] Période: du ${startDate.toLocaleDateString('fr-FR')} au ${endDate.toLocaleDateString('fr-FR')}`
+  );
+  console.log(
+    `[DEBUG RECURRING] Nombre de dépenses récurrentes à traiter: ${recurringExpenses.length}`
+  );
 
   // Créer un ensemble pour suivre les dates des occurrences déjà générées
   const generatedDates = new Set<string>();
@@ -309,9 +605,9 @@ function generateFutureOccurrencesForMonth(
     const { id, description, amount, frequency, nextDate } = expense;
 
     // Vérifier si la date de récurrence est dans le mois cible
-    const recurrenceMonth = nextDate.getUTCMonth();
-    const recurrenceYear = nextDate.getUTCFullYear();
-    const recurrenceDay = nextDate.getUTCDate();
+    const recurrenceMonth = nextDate.getMonth();
+    const recurrenceYear = nextDate.getFullYear();
+    const recurrenceDay = nextDate.getDate();
 
     // Si la date de récurrence est dans un mois futur par rapport au mois cible, l'ignorer
     if (
@@ -347,8 +643,7 @@ function generateFutureOccurrencesForMonth(
 
       // Avancer jusqu'à trouver une occurrence dans le mois cible
       while (
-        (currentDate.getUTCMonth() !== targetMonth ||
-          currentDate.getUTCFullYear() !== targetYear) &&
+        (currentDate.getMonth() !== targetMonth || currentDate.getFullYear() !== targetYear) &&
         iterationCount < MAX_ITERATIONS
       ) {
         iterationCount++;
@@ -386,9 +681,9 @@ function generateFutureOccurrencesForMonth(
 
     while (!isAfter(currentDate, endDate) && occurrenceCount < MAX_OCCURRENCES) {
       // Vérifier que l'occurrence est dans le mois cible
-      const occurrenceMonth = currentDate.getUTCMonth();
-      const occurrenceYear = currentDate.getUTCFullYear();
-      const occurrenceDay = currentDate.getUTCDate();
+      const occurrenceMonth = currentDate.getMonth();
+      const occurrenceYear = currentDate.getFullYear();
+      const occurrenceDay = currentDate.getDate();
 
       if (occurrenceMonth !== targetMonth || occurrenceYear !== targetYear) {
         break; // Sortir de la boucle si on dépasse le mois cible
