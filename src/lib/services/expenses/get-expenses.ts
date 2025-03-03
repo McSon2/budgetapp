@@ -27,9 +27,6 @@ export async function getExpenses(
   const requestedMonth = date.getMonth(); // 0-11 (janvier = 0)
   const requestedYear = date.getFullYear();
 
-  console.log(`getExpenses: Mois demandé: ${requestedMonth + 1}/${requestedYear}`);
-  console.log(`getExpenses: Période: ${startDate.toISOString()} à ${endDate.toISOString()}`);
-
   // Récupérer les dépenses depuis la base de données
   const dbExpenses = await prisma.expense.findMany({
     where: {

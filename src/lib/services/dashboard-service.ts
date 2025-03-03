@@ -167,9 +167,6 @@ export async function getDashboardData(
       })
       .reduce((acc, expense) => acc + expense.amount, 0);
 
-    console.log(`[DEBUG DASHBOARD] Dépenses futures du mois courant: ${futureExpenses}`);
-    console.log(`[DEBUG DASHBOARD] Nombre de dépenses filtrées: ${filteredMonthExpenses.length}`);
-
     endOfMonthBalance += futureExpenses;
   }
   // Si c'est un mois futur, calculer le solde de fin de mois différemment
@@ -179,9 +176,6 @@ export async function getDashboardData(
 
     // 1. Partir du solde actuel
     endOfMonthBalance = currentBalance;
-    console.log(
-      `[DEBUG DASHBOARD] Calcul pour mois futur - Solde actuel de départ: ${endOfMonthBalance}`
-    );
 
     // 2. Récupérer toutes les dépenses non récurrentes entre aujourd'hui et la fin du mois sélectionné
     const futureExpensesUntilEndOfSelectedMonth = await prisma.expense.findMany({
@@ -204,16 +198,8 @@ export async function getDashboardData(
       0
     );
 
-    console.log(
-      `[DEBUG DASHBOARD] Dépenses futures jusqu'à la fin du mois sélectionné: ${futureExpensesAmount}`
-    );
-    console.log(
-      `[DEBUG DASHBOARD] Nombre de dépenses futures: ${futureExpensesUntilEndOfSelectedMonth.length}`
-    );
-
     // Ajouter ces dépenses au solde (les montants négatifs seront soustraits)
     endOfMonthBalance += futureExpensesAmount;
-    console.log(`[DEBUG DASHBOARD] Solde après dépenses futures: ${endOfMonthBalance}`);
 
     // 3. Calculer les récurrences pour tous les mois entre aujourd'hui et le mois sélectionné inclus
     // Déterminer le nombre de mois entre aujourd'hui et le mois sélectionné
@@ -224,7 +210,6 @@ export async function getDashboardData(
 
     // Calculer le nombre de mois entre les deux dates
     const monthDiff = (selectedYear - currentYear) * 12 + (selectedMonth - currentMonth);
-    console.log(`[DEBUG DASHBOARD] Différence de mois: ${monthDiff}`);
 
     // Pour chaque mois entre aujourd'hui et le mois sélectionné (inclus)
     let totalRecurringAmount = 0;
@@ -237,10 +222,6 @@ export async function getDashboardData(
 
       const monthStart = normalizeToStartOfMonth(targetDate);
       const monthEnd = normalizeToEndOfMonth(targetDate);
-
-      console.log(
-        `[DEBUG DASHBOARD] Traitement du mois ${i}: ${monthStart.toLocaleDateString('fr-FR')} - ${monthEnd.toLocaleDateString('fr-FR')}`
-      );
 
       // Récupérer les récurrences pour ce mois
       const monthRecurringExpenses = await prisma.expense
@@ -270,10 +251,6 @@ export async function getDashboardData(
         monthEnd
       );
 
-      console.log(
-        `[DEBUG DASHBOARD] Nombre d'occurrences générées pour le mois ${i}: ${monthOccurrences.length}`
-      );
-
       // Pour le mois courant, ne prendre que les occurrences futures
       let monthRecurringAmount = 0;
 
@@ -290,19 +267,12 @@ export async function getDashboardData(
         );
       }
 
-      console.log(
-        `[DEBUG DASHBOARD] Montant des récurrences pour le mois ${i}: ${monthRecurringAmount}`
-      );
-
       // Ajouter au total
       totalRecurringAmount += monthRecurringAmount;
     }
 
-    console.log(`[DEBUG DASHBOARD] Montant total des récurrences futures: ${totalRecurringAmount}`);
-
     // Ajouter les récurrences au solde (les montants négatifs seront soustraits)
     endOfMonthBalance += totalRecurringAmount;
-    console.log(`[DEBUG DASHBOARD] Solde final après récurrences: ${endOfMonthBalance}`);
 
     // Stocker le montant des récurrences pour l'affichage
     generatedFutureAmount = totalRecurringAmount;
@@ -317,10 +287,6 @@ export async function getDashboardData(
         return isAfter(expenseDate, endDate) && !isAfter(expenseDate, currentBalanceEndDate);
       })
       .reduce((acc, expense) => acc + expense.amount, 0);
-
-    console.log(
-      `[DEBUG DASHBOARD] Transactions après le mois sélectionné (passé): ${transactionsAfterSelectedMonth}`
-    );
 
     endOfMonthBalance -= transactionsAfterSelectedMonth;
   }
@@ -358,10 +324,6 @@ export async function getDashboardData(
       endDate
     );
 
-    console.log(
-      `[DEBUG DASHBOARD] Nombre d'occurrences générées: ${generatedFutureOccurrences.length}`
-    );
-
     // Pour le mois courant, ne compter que les occurrences qui ne sont pas déjà incluses dans le solde actuel
     // Filtrer les occurrences qui sont après aujourd'hui
     const futureOccurrences = generatedFutureOccurrences.filter(
@@ -379,9 +341,6 @@ export async function getDashboardData(
 
     // 1. Partir du solde actuel
     endOfMonthBalance = currentBalance;
-    console.log(
-      `[DEBUG DASHBOARD] Calcul pour mois futur - Solde actuel de départ: ${endOfMonthBalance}`
-    );
 
     // 2. Récupérer toutes les dépenses non récurrentes entre aujourd'hui et la fin du mois sélectionné
     const futureExpensesUntilEndOfSelectedMonth = await prisma.expense.findMany({
@@ -404,16 +363,8 @@ export async function getDashboardData(
       0
     );
 
-    console.log(
-      `[DEBUG DASHBOARD] Dépenses futures jusqu'à la fin du mois sélectionné: ${futureExpensesAmount}`
-    );
-    console.log(
-      `[DEBUG DASHBOARD] Nombre de dépenses futures: ${futureExpensesUntilEndOfSelectedMonth.length}`
-    );
-
     // Soustraire ces dépenses du solde
     endOfMonthBalance += futureExpensesAmount;
-    console.log(`[DEBUG DASHBOARD] Solde après dépenses futures: ${endOfMonthBalance}`);
 
     // 3. Récupérer et calculer les récurrences pour tous les mois entre aujourd'hui et le mois sélectionné
     // Déterminer le nombre de mois entre aujourd'hui et le mois sélectionné
@@ -424,7 +375,6 @@ export async function getDashboardData(
 
     // Calculer le nombre de mois entre les deux dates
     const monthDiff = (selectedYear - currentYear) * 12 + (selectedMonth - currentMonth);
-    console.log(`[DEBUG DASHBOARD] Différence de mois: ${monthDiff}`);
 
     // Pour chaque mois entre aujourd'hui et le mois sélectionné (inclus)
     let totalRecurringAmount = 0;
@@ -436,10 +386,6 @@ export async function getDashboardData(
 
       const monthStart = normalizeToStartOfMonth(targetDate);
       const monthEnd = normalizeToEndOfMonth(targetDate);
-
-      console.log(
-        `[DEBUG DASHBOARD] Traitement du mois ${i}: ${monthStart.toLocaleDateString('fr-FR')} - ${monthEnd.toLocaleDateString('fr-FR')}`
-      );
 
       // Récupérer les récurrences pour ce mois
       const monthRecurringExpenses = await prisma.expense
@@ -469,10 +415,6 @@ export async function getDashboardData(
         monthEnd
       );
 
-      console.log(
-        `[DEBUG DASHBOARD] Nombre d'occurrences générées pour le mois ${i}: ${monthOccurrences.length}`
-      );
-
       // Pour le mois courant, ne prendre que les occurrences futures
       let monthRecurringAmount = 0;
 
@@ -489,39 +431,17 @@ export async function getDashboardData(
         );
       }
 
-      console.log(
-        `[DEBUG DASHBOARD] Montant des récurrences pour le mois ${i}: ${monthRecurringAmount}`
-      );
-
       // Ajouter au total
       totalRecurringAmount += monthRecurringAmount;
     }
-
-    console.log(`[DEBUG DASHBOARD] Montant total des récurrences futures: ${totalRecurringAmount}`);
-
     // Ajouter les récurrences au solde
     endOfMonthBalance += totalRecurringAmount;
-    console.log(`[DEBUG DASHBOARD] Solde final après récurrences: ${endOfMonthBalance}`);
-
     // Stocker le montant des récurrences pour l'affichage
     generatedFutureAmount = totalRecurringAmount;
   }
 
   // Ajouter les occurrences futures générées au solde de fin de mois
   const endOfMonthBalanceWithRecurring = endOfMonthBalance + generatedFutureAmount;
-
-  console.log(
-    `[DEBUG DASHBOARD] Calcul du solde pour ${normalizedDate.toLocaleDateString('fr-FR')}`
-  );
-  console.log(`[DEBUG DASHBOARD] Solde actuel: ${currentBalance}`);
-  console.log(`[DEBUG DASHBOARD] Solde de fin de mois (sans récurrences): ${endOfMonthBalance}`);
-  console.log(`[DEBUG DASHBOARD] Montant des récurrences futures: ${generatedFutureAmount}`);
-  console.log(
-    `[DEBUG DASHBOARD] Solde de fin de mois (avec récurrences): ${endOfMonthBalanceWithRecurring}`
-  );
-  console.log(
-    `[DEBUG DASHBOARD] Type de mois: ${isCurrentMonth ? 'Courant' : isFutureMonth ? 'Futur' : 'Passé'}`
-  );
 
   // Calculer les dépenses par catégorie
   const categoryExpensesMap = new Map<string, { name: string; amount: number; color: string }>();
@@ -582,16 +502,6 @@ function generateFutureOccurrencesForMonth(
   // Extraire le mois et l'année de la date de fin (qui correspond au mois sélectionné)
   const targetMonth = endDate.getMonth();
   const targetYear = endDate.getFullYear();
-
-  console.log(
-    `[DEBUG RECURRING] Génération des dépenses récurrentes pour le mois ${targetMonth + 1}/${targetYear}`
-  );
-  console.log(
-    `[DEBUG RECURRING] Période: du ${startDate.toLocaleDateString('fr-FR')} au ${endDate.toLocaleDateString('fr-FR')}`
-  );
-  console.log(
-    `[DEBUG RECURRING] Nombre de dépenses récurrentes à traiter: ${recurringExpenses.length}`
-  );
 
   // Créer un ensemble pour suivre les dates des occurrences déjà générées
   const generatedDates = new Set<string>();

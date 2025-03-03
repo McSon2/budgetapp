@@ -42,12 +42,6 @@ export async function GET(request: NextRequest) {
       console.warn('API: Les dates ne correspondent pas au même mois:', startDate, endDate);
     }
 
-    // Extraire le mois et l'année de la date de début (utiliser les méthodes locales)
-    const requestedMonth = startDateObj.getMonth() + 1; // 1-12 (janvier = 1)
-    const requestedYear = startDateObj.getFullYear();
-
-    console.log(`API: Récupération des dépenses pour le mois ${requestedMonth}/${requestedYear}`);
-
     // Utiliser la nouvelle signature de getExpenses qui prend le mois comme paramètre
     const result = await getExpenses(userId, startDate);
 

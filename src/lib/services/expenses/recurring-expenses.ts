@@ -27,10 +27,6 @@ export async function generateRecurringExpensesForPeriod(
   const targetMonth = requestedMonth !== undefined ? requestedMonth : startDate.getMonth();
   const targetYear = requestedYear !== undefined ? requestedYear : startDate.getFullYear();
 
-  console.log(
-    `Génération des dépenses récurrentes pour ${targetMonth + 1}/${targetYear} (${startDateStr} à ${endDateStr})`
-  );
-
   // Récupérer toutes les dépenses récurrentes de l'utilisateur
   const recurringExpenses = await prisma.expense.findMany({
     where: {
@@ -43,8 +39,6 @@ export async function generateRecurringExpensesForPeriod(
       recurrence: true,
     },
   });
-
-  console.log(`Nombre de dépenses récurrentes trouvées: ${recurringExpenses.length}`);
 
   // Récupérer toutes les dépenses existantes pour la période
   const existingExpenses = await prisma.expense.findMany({
@@ -82,10 +76,6 @@ export async function generateRecurringExpensesForPeriod(
     const recurrenceStart = new Date(recurrenceStartStr);
     const category = expense.category?.name || 'Non catégorisé';
 
-    console.log(
-      `Traitement de la dépense récurrente: ${description} (${frequency}, début: ${recurrenceStartStr})`
-    );
-
     // Utiliser un format qui inclut le mois et l'année pour éviter les confusions entre les mois
     const originalDateKey = createDateKey(id, recurrenceStart);
     existingExpenseDates.add(originalDateKey);
@@ -112,8 +102,6 @@ export async function generateRecurringExpensesForPeriod(
       }
     }
 
-    console.log(`Première occurrence pour ${description}: ${currentDate.toISOString()}`);
-
     // Générer toutes les occurrences dans la période
     while (currentDate <= endDate) {
       // Vérifier que l'occurrence est dans le même mois que la période demandée
@@ -133,10 +121,6 @@ export async function generateRecurringExpensesForPeriod(
         const isExistingDateKey = existingExpenseDates.has(dateKey);
 
         if (isOriginalDateKey || isExistingDateKey) {
-          // Ne rien faire si c'est la date originale ou une date existante
-          console.log(
-            `Occurrence ignorée pour ${description} à ${currentDate.toISOString()} (déjà existante)`
-          );
         } else {
           // Créer une occurrence pour cette date
           const generatedId = generateRecurrenceId(id, currentDate);
@@ -152,15 +136,9 @@ export async function generateRecurringExpensesForPeriod(
             isGenerated: true,
           });
 
-          console.log(`Occurrence générée pour ${description} à ${currentDate.toISOString()}`);
-
           // Ajouter cette date à l'ensemble des dates existantes pour éviter les doublons
           existingExpenseDates.add(dateKey);
         }
-      } else {
-        console.log(
-          `Occurrence ignorée pour ${description} à ${currentDate.toISOString()} (mois différent: ${occurrenceMonth + 1}/${occurrenceYear} vs ${targetMonth + 1}/${targetYear})`
-        );
       }
 
       // Passer à la prochaine occurrence
@@ -180,8 +158,6 @@ export async function generateRecurringExpensesForPeriod(
       }
     }
   });
-
-  console.log(`Nombre de dépenses récurrentes générées: ${generatedExpenses.length}`);
   return generatedExpenses;
 }
 
