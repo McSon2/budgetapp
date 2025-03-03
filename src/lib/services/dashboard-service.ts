@@ -541,7 +541,14 @@ function generateFutureOccurrencesForMonth(
       recurrenceYear > targetYear ||
       (recurrenceYear === targetYear && recurrenceMonth > targetMonth)
     ) {
-      return;
+      // Cas spécial pour les transactions annuelles futures comme Amazon Prime:
+      // Si c'est une récurrence annuelle, on peut quand même l'afficher dans le mois cible de l'année cible
+      if (frequency === 'yearly' && recurrenceMonth === targetMonth) {
+        // On traite cette transaction comme si elle était déjà en cours, mais dans l'année cible
+        // On ne fait rien ici, on continue le traitement
+      } else {
+        return; // Ignorer pour les autres cas
+      }
     }
 
     // Si la date de début est après la fin du mois, ignorer cette dépense
@@ -568,42 +575,71 @@ function generateFutureOccurrencesForMonth(
       let iterationCount = 0;
       const MAX_ITERATIONS = 1000; // Éviter les boucles infinies
 
-      // Avancer jusqu'à trouver une occurrence dans le mois cible
-      while (
-        (currentDate.getMonth() !== targetMonth || currentDate.getFullYear() !== targetYear) &&
-        iterationCount < MAX_ITERATIONS
-      ) {
-        iterationCount++;
+      // Cas spécial pour les récurrences annuelles
+      if (frequency === 'yearly') {
+        // Pour les dépenses annuelles, on calcule directement la date dans l'année cible
+        // en conservant le même jour et mois
+        currentDate = new Date(
+          targetYear,
+          recurrenceMonth,
+          recurrenceDay,
+          currentDate.getHours(),
+          currentDate.getMinutes()
+        );
 
-        // Vérifier si on a dépassé la date de fin de la récurrence
-        if (recurrenceEnd && currentDate > recurrenceEnd) {
-          iterationCount = MAX_ITERATIONS; // Forcer la sortie de la boucle
-          break;
+        // Vérifier si nous sommes dans le bon mois
+        if (recurrenceMonth !== targetMonth) {
+          // Si la date récurrente est dans un autre mois que le mois cible,
+          // cette dépense ne se produira pas ce mois-ci
+          return;
         }
 
-        switch (frequency) {
-          case 'daily':
-            currentDate = addDays(currentDate, 1);
-            break;
-          case 'weekly':
-            currentDate = addWeeks(currentDate, 1);
-            break;
-          case 'monthly':
-            currentDate = addMonths(currentDate, 1);
-            break;
-          case 'yearly':
-            currentDate = addYears(currentDate, 1);
-            break;
-          default:
-            // Si on ne peut pas avancer, sortir de la boucle
-            iterationCount = MAX_ITERATIONS;
-            break;
+        // Vérifier si cette date est valide
+        if (isNaN(currentDate.getTime())) {
+          console.error(`[DEBUG DASHBOARD] Date invalide pour ${description}, ignorée`);
+          return;
         }
-      }
+      } else {
+        // Pour les autres fréquences, utiliser l'algorithme d'itération
+        // Avancer jusqu'à trouver une occurrence dans le mois cible
+        while (
+          (currentDate.getMonth() !== targetMonth || currentDate.getFullYear() !== targetYear) &&
+          iterationCount < MAX_ITERATIONS
+        ) {
+          iterationCount++;
 
-      if (iterationCount >= MAX_ITERATIONS) {
-        console.error(`[DEBUG DASHBOARD] Trop d'itérations pour ${description}, ignorée`);
-        return;
+          // Vérifier si on a dépassé la date de fin de la récurrence
+          if (recurrenceEnd && currentDate > recurrenceEnd) {
+            iterationCount = MAX_ITERATIONS; // Forcer la sortie de la boucle
+            break;
+          }
+
+          switch (frequency) {
+            case 'daily':
+              currentDate = addDays(currentDate, 1);
+              break;
+            case 'weekly':
+              currentDate = addWeeks(currentDate, 1);
+              break;
+            case 'monthly':
+              currentDate = addMonths(currentDate, 1);
+              break;
+            case 'yearly':
+              // Pour les dépenses annuelles, uniquement avancer d'un an
+              // sans optimisation spéciale - cette section est déjà optimisée plus haut
+              currentDate = addYears(currentDate, 1);
+              break;
+            default:
+              // Si on ne peut pas avancer, sortir de la boucle
+              iterationCount = MAX_ITERATIONS;
+              break;
+          }
+        }
+
+        if (iterationCount >= MAX_ITERATIONS) {
+          console.error(`[DEBUG DASHBOARD] Trop d'itérations pour ${description}, ignorée`);
+          return;
+        }
       }
     }
 
@@ -660,7 +696,11 @@ function generateFutureOccurrencesForMonth(
           currentDate = addMonths(currentDate, 1);
           break;
         case 'yearly':
-          currentDate = addYears(currentDate, 1);
+          // Pour les dépenses annuelles, une seule occurrence par an
+          // Après avoir traité une occurrence pour l'année cible, on sort de la boucle
+          currentDate = addYears(currentDate, 1); // On avance d'un an
+          // On force aussi la sortie immédiate de la boucle
+          occurrenceCount = MAX_OCCURRENCES;
           break;
         default:
           // Si on ne peut pas avancer, sortir de la boucle
