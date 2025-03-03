@@ -72,9 +72,21 @@ export async function generateRecurringExpensesForPeriod(
     if (!expense.recurrence) return;
 
     const { id, description, amount } = expense;
-    const { frequency, startDate: recurrenceStartStr } = expense.recurrence;
+    const {
+      frequency,
+      startDate: recurrenceStartStr,
+      endDate: recurrenceEndStr,
+    } = expense.recurrence;
     const recurrenceStart = new Date(recurrenceStartStr);
+    // Convertir la date de fin de récurrence en objet Date si elle existe
+    const recurrenceEnd = recurrenceEndStr ? new Date(recurrenceEndStr) : null;
     const category = expense.category?.name || 'Non catégorisé';
+
+    // Si la récurrence a une date de fin et que celle-ci est antérieure à la date de début de la période,
+    // ignorer cette récurrence
+    if (recurrenceEnd && recurrenceEnd < startDate) {
+      return;
+    }
 
     // Utiliser un format qui inclut le mois et l'année pour éviter les confusions entre les mois
     const originalDateKey = createDateKey(id, recurrenceStart);
@@ -104,6 +116,12 @@ export async function generateRecurringExpensesForPeriod(
 
     // Générer toutes les occurrences dans la période
     while (currentDate <= endDate) {
+      // Vérifier si l'occurrence est après la date de fin de la récurrence
+      if (recurrenceEnd && currentDate > recurrenceEnd) {
+        // Si on a dépassé la date de fin de la récurrence, arrêter la génération
+        break;
+      }
+
       // Vérifier que l'occurrence est dans le même mois que la période demandée
       // Utiliser getMonth() au lieu de getUTCMonth() pour éviter les problèmes de fuseau horaire
       const occurrenceMonth = currentDate.getMonth();

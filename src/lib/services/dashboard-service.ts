@@ -13,6 +13,7 @@ export interface DashboardData {
     amount: number;
     frequency: string;
     nextDate: Date;
+    endDate?: Date | null;
   }[];
   categoryExpenses: {
     id: string;
@@ -241,6 +242,7 @@ export async function getDashboardData(
             amount: expense.amount,
             frequency: expense.recurrence?.frequency || 'monthly',
             nextDate: expense.recurrence?.startDate || new Date(),
+            endDate: expense.recurrence?.endDate || null,
           }))
         );
 
@@ -309,6 +311,7 @@ export async function getDashboardData(
         amount: expense.amount,
         frequency: expense.recurrence?.frequency || 'monthly',
         nextDate: expense.recurrence?.startDate || new Date(),
+        endDate: expense.recurrence?.endDate || null,
       }))
     );
 
@@ -405,6 +408,7 @@ export async function getDashboardData(
             amount: expense.amount,
             frequency: expense.recurrence?.frequency || 'monthly',
             nextDate: expense.recurrence?.startDate || new Date(),
+            endDate: expense.recurrence?.endDate || null,
           }))
         );
 
@@ -493,6 +497,7 @@ function generateFutureOccurrencesForMonth(
     amount: number;
     frequency: string;
     nextDate: Date;
+    endDate?: Date | null;
   }[],
   startDate: Date,
   endDate: Date
@@ -512,7 +517,19 @@ function generateFutureOccurrencesForMonth(
 
   // Pour chaque dépense récurrente
   recurringExpenses.forEach(expense => {
-    const { id, description, amount, frequency, nextDate } = expense;
+    const { id, description, amount, frequency, nextDate, endDate: recurrenceEndDate } = expense;
+
+    // Convertir la date de fin de récurrence en objet Date si elle existe
+    let recurrenceEnd: Date | null = null;
+    if (recurrenceEndDate) {
+      recurrenceEnd = new Date(recurrenceEndDate);
+    }
+
+    // Si la récurrence a une date de fin et celle-ci est antérieure à la date de début de la période,
+    // ignorer cette récurrence car elle est terminée
+    if (recurrenceEnd && recurrenceEnd < startDate) {
+      return;
+    }
 
     // Vérifier si la date de récurrence est dans le mois cible
     const recurrenceMonth = nextDate.getMonth();
@@ -558,6 +575,12 @@ function generateFutureOccurrencesForMonth(
       ) {
         iterationCount++;
 
+        // Vérifier si on a dépassé la date de fin de la récurrence
+        if (recurrenceEnd && currentDate > recurrenceEnd) {
+          iterationCount = MAX_ITERATIONS; // Forcer la sortie de la boucle
+          break;
+        }
+
         switch (frequency) {
           case 'daily':
             currentDate = addDays(currentDate, 1);
@@ -590,6 +613,11 @@ function generateFutureOccurrencesForMonth(
     const MAX_OCCURRENCES = 31; // Maximum d'occurrences par mois
 
     while (!isAfter(currentDate, endDate) && occurrenceCount < MAX_OCCURRENCES) {
+      // Vérifier si on a dépassé la date de fin de la récurrence
+      if (recurrenceEnd && currentDate > recurrenceEnd) {
+        break; // Sortir de la boucle si on a dépassé la date de fin
+      }
+
       // Vérifier que l'occurrence est dans le mois cible
       const occurrenceMonth = currentDate.getMonth();
       const occurrenceYear = currentDate.getFullYear();

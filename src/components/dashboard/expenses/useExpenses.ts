@@ -198,14 +198,55 @@ export function useExpenses() {
   };
 
   const handleEdit = (expense: Expense) => {
-    // Ignorer les transactions générées
+    // Pour les transactions prévisionnelles générées
     if (expense.isGenerated) {
-      toast.error(
-        "Les transactions prévisionnelles ne peuvent pas être modifiées directement. Modifiez la transaction récurrente d'origine."
-      );
+      // Trouver la transaction récurrente originale
+      // Le format est généralement originalId-YYYY-MM-DD
+      const idParts = expense.id.split('-');
+      const originalId = idParts[0]; // Prendre la première partie comme ID original
+
+      // Deux possibilités : soit trouver la transaction avec l'ID exact (originale),
+      // soit trouver une autre transaction générée du même parent et extraire son ID
+      const originalExpense = expenses.find(e => e.id === originalId);
+
+      // Si on ne trouve pas la transaction originale directement, cherchons parmi les autres transactions générées
+      if (!originalExpense) {
+        // Il est possible que la transaction originale ne soit pas dans le mois actuel
+        // Cherchons alors parmi les autres transactions générées qui partagent le même ID de base
+
+        // Chercher si cette transaction elle-même pourrait être utilisée (cas le plus simple)
+        if (expense.isRecurring) {
+          setEditingExpense(expense);
+          return;
+        }
+
+        // Tentative de récupération depuis l'API
+        toast.promise(
+          fetch(`/api/expenses/recurring-parent/${originalId}`)
+            .then(response => {
+              if (!response.ok) {
+                throw new Error("Impossible de trouver la transaction récurrente d'origine");
+              }
+              return response.json();
+            })
+            .then(parentExpense => {
+              setEditingExpense(parentExpense);
+            }),
+          {
+            loading: "Recherche de la transaction récurrente d'origine...",
+            success: 'Transaction récurrente trouvée',
+            error:
+              "Cette transaction fait partie d'une série récurrente. Veuillez modifier la transaction d'origine depuis le mois où elle a été créée.",
+          }
+        );
+        return;
+      }
+      // Si nous avons trouvé la transaction d'origine, nous la passons pour modification
+      setEditingExpense(originalExpense);
       return;
     }
 
+    // Si c'est une transaction récurrente (mais pas générée), définir directement pour l'édition
     setEditingExpense(expense);
   };
 

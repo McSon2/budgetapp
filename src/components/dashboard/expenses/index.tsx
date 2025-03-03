@@ -10,6 +10,7 @@ import { ExpenseFilters } from './ExpenseFilters';
 import { ExpenseListActions } from './ExpenseListActions';
 import { ExpenseListHeader } from './ExpenseListHeader';
 import { ExpenseListItem } from './ExpenseListItem';
+import { RecurringExpenseModifierDialog } from './RecurringExpenseModifierDialog';
 import { useExpenses } from './useExpenses';
 
 export function ExpensesList() {
@@ -194,14 +195,26 @@ export function ExpensesList() {
       </CardContent>
 
       {/* Dialogue d'édition */}
-      {editingExpense && (
-        <EditExpenseDialog
-          expense={editingExpense}
-          categories={categories}
-          onSave={handleSaveEdit}
-          onCancel={handleCancelEdit}
-        />
-      )}
+      {editingExpense &&
+        (editingExpense.isRecurring ? (
+          <RecurringExpenseModifierDialog
+            expense={editingExpense}
+            categories={categories}
+            onClose={handleCancelEdit}
+            onModified={() => {
+              handleCancelEdit();
+              // Rafraîchir les données
+              window.location.reload();
+            }}
+          />
+        ) : (
+          <EditExpenseDialog
+            expense={editingExpense}
+            categories={categories}
+            onSave={handleSaveEdit}
+            onCancel={handleCancelEdit}
+          />
+        ))}
     </Card>
   );
 }
